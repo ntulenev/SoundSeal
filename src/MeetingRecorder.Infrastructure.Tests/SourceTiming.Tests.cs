@@ -45,6 +45,51 @@ public sealed class SourceTimingTests
         next.Should().Throw<RecordingException>().WithMessage("*synchronized*");
     }
 
+    /// <summary>One invalid loopback timestamp can be extrapolated on a forward-moving transport clock.</summary>
+    [Fact(DisplayName = "Loopback extrapolates one missing timestamp and rejects ambiguous positions")]
+    public void LoopbackShouldRequireReliableTimeAfterOneMissingTimestamp()
+    {
+        var track = new SourceTrack(0);
+        track.Add(new(true, FORMAT, 1000, 0, 160, []), 0);
+        track.Add(new(true, FORMAT, 1080, null, 160, []), 0);
+        Assert.Throws<RecordingException>(() => track.Add(new(true, FORMAT, 1160, null, 160, []), 0));
+        track.Add(new(true, FORMAT, 1160, 200000, 160, []), 0);
+        Assert.Throws<RecordingException>(() => track.Add(new(true, FORMAT, 1160, null, 160, []), 0));
+        Assert.Throws<RecordingException>(() => track.Add(new(true, FORMAT, 1240, null, 160, [], true), 0));
+        Assert.Throws<RecordingException>(() => track.Add(new(true, FORMAT, 1000, 300000, 160, []), 0));
+    }
+
+    /// <summary>A small forward gap on a frame-based loopback clock leaves silence in that timeline slot.</summary>
+    [Fact(DisplayName = "An established mix-frame counter identifies a short unflagged playback gap")]
+    public void ShortPlaybackGapShouldKeepItsPosition()
+    {
+        var track = new SourceTrack(0);
+        var data = Enumerable.Repeat((byte)64, 320).ToArray();
+        track.Add(new(true, FORMAT, 0, 0, 160, data), 0);
+        track.Add(new(true, FORMAT, 160, 100000, 160, data), 0);
+        track.Add(new(true, FORMAT, 480, 300000, 160, data), 0);
+        var gap = new float[160];
+        track.Read(320, gap);
+        Assert.All(gap, sample => Assert.Equal(0f, sample));
+        track.Read(480, gap);
+        Assert.Contains(gap, sample => sample > 0.05f);
+    }
+
+    /// <summary>A flagged packet with overlapping timestamps cannot replace earlier audio.</summary>
+    [Fact(DisplayName = "A timestamped loopback restart preserves the previous segment up to its end")]
+    public void FlaggedPlaybackOverlapShouldNotDuplicateSamples()
+    {
+        var track = new SourceTrack(0);
+        var first = Enumerable.Repeat((byte)64, 320).ToArray();
+        var next = Enumerable.Repeat((byte)192, 320).ToArray();
+        track.Add(new(true, FORMAT, 0, 0, 160, first), 0);
+        track.Add(new(true, FORMAT, 160, 50000, 160, next, true), 0);
+        var data = new float[240];
+        track.Read(0, data);
+        Assert.All(data[80..160], sample => Assert.True(sample > 0.05f));
+        Assert.All(data[165..], sample => Assert.True(sample < -0.05f));
+    }
+
     /// <summary>Loopback after a connected silent gap resumes at its new timestamp.</summary>
     [Fact(DisplayName = "Loopback after a connected silent gap resumes at its new timestamp")]
     public void SilentGapShouldRestartLoopbackTrack()

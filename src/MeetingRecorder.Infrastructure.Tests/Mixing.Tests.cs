@@ -38,6 +38,51 @@ public sealed class MixingTests : IDisposable
         Assert.Equal(default, meters[^1]);
     }
 
+    /// <summary>Loopback PCM and endpoint positions can run at different rates on a Bluetooth call.</summary>
+    [Theory(DisplayName = "Meeting WAV preserves both sources when the playback position uses a different clock")]
+    [Trait("Category", "Integration")]
+    [InlineData(160)]
+    [InlineData(960)]
+    public void LoopbackTransportClockShouldNotSetThePcmRate(int transportStep)
+    {
+        using var file = WaveDestination.Create(Folder.FullName, DateTime.Now);
+        var mixer = new IntervalMixer(0, file, _ => { });
+        var micFormat = new InputFormat(16000, 1, 16, false, 0);
+        var voice = new byte[160 * sizeof(short)];
+        for (var i = 0; i < 160; i++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(voice.AsSpan(i * sizeof(short)),
+                (short)(20000 * Math.Sin(2 * Math.PI * 400 * i / 16000)));
+        }
+
+        var playback = Tone(true, 0, 0, 0.01, 800);
+        for (var i = 0; i < 300; i++)
+        {
+            var ticks = i * (SECOND / 100);
+            mixer.Add(new(false, micFormat, i * 160, ticks, 160, voice));
+            // First short packet and millisecond timestamp jitter seen when starting loopback on the headset.
+            var frames = i == 0 ? 462 : 480;
+            var jitter = i % 3 * TimeSpan.TicksPerMillisecond;
+            mixer.Add(playback with
+            {
+                Position = 1000000L + (i * transportStep),
+                Qpc = ticks + jitter,
+                Frames = frames,
+                Discontinuity = i == 0
+            });
+            mixer.Drain(ticks - (SECOND / 10));
+        }
+
+        mixer.Drain(3 * SECOND);
+        var samples = Read(file.Complete(EmptyRecordingPolicy.Keep, null));
+        Assert.Equal(48000, samples.Length);
+        foreach (var start in new[] { 8000, 24000, 40000 })
+        {
+            Assert.True(Energy(samples, start, 4000, 400) > 0.08);
+            Assert.True(Energy(samples, start, 4000, 800) > 0.1);
+        }
+    }
+
     /// <summary>Twenty seconds without loopback preserve speech order and silence.</summary>
     [Trait("Category", "Unit")]
     [Fact(DisplayName = "Twenty seconds without loopback preserve speech order and silence")]
