@@ -40,7 +40,10 @@
                                 </Style>
                             </Image.Style>
                         </Image>
-                        <TextBlock Margin="14,0" VerticalAlignment="Center" Text="SoundSeal" FontSize="28" FontWeight="Bold"/>
+                        <StackPanel Margin="14,0" VerticalAlignment="Center">
+                            <TextBlock Text="SoundSeal" FontSize="28" FontWeight="Bold"/>
+                            <TextBlock x:Name="VersionLabel" Margin="0,2,0,0" FontSize="14" Foreground="{StaticResource Muted}"/>
+                        </StackPanel>
                     </StackPanel>
                 </DockPanel>
             </Border>

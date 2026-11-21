@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
 
@@ -25,6 +26,8 @@ public partial class MainWindow : Window
         _model = model;
         _browser = browser;
         InitializeComponent();
+        var version = typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
+        VersionLabel.Text = $"Version {version.Split('+')[0]}";
         DataContext = model;
         FolderPanel.DataContext = browser;
     }

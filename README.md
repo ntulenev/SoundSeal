@@ -78,6 +78,8 @@ Click **Open folder** and select the WAV in your transcription tool. For a split
 
 ## Troubleshooting
 
+When reporting a recording issue, include the version shown below **SoundSeal** in the window header and the names of the selected devices.
+
 | What you see or hear | What to check |
 | --- | --- |
 | **Microphone** stays **Silent** while you speak | Check the selected input, the microphone's hardware mute switch, and the Windows input level. In Windows microphone privacy settings, allow desktop apps to access the microphone. |
@@ -111,6 +113,7 @@ The same Release coverage script was run on each revision. Percentages combine l
 | v3.1.3 | 154 | 1395 / 1548 (90.1%) | 731 / 786 (93.0%) |
 | v3.1.5 | 159 | 1401 / 1554 (90.2%) | 733 / 788 (93.0%) |
 | v3.1.7 | 166 | 1404 / 1557 (90.2%) | 739 / 794 (93.1%) |
+| v3.1.8 | 166 | 1406 / 1559 (90.2%) | 740 / 795 (93.1%) |
 
 The v2.0.0 domain suite and integration tests together exercise all 227 executable domain lines and all 96 domain branches. The full suite covers invalid value construction, immutable device and folder listings, cancellation before and during device startup, retry after cleanup, and publication after late cancellation.
 
