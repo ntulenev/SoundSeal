@@ -79,6 +79,7 @@ The same Release coverage script was run on each revision. Percentages combine l
 | v1.3.0 | 104 | 887 / 1030 (86.1%) | 480 / 535 (89.7%) |
 | v2.0.0 | 141 | 1258 / 1410 (89.2%) | 593 / 646 (91.8%) |
 | v3.1.0 | 154 | 1393 / 1546 (90.1%) | 721 / 776 (92.9%) |
+| v3.1.3 | 154 | 1395 / 1548 (90.1%) | 731 / 786 (93.0%) |
 
 The v2.0.0 domain suite and integration tests together exercise all 227 executable domain lines and all 96 domain branches. The full suite covers invalid value construction, immutable device and folder listings, cancellation before and during device startup, retry after cleanup, and publication after late cancellation.
 

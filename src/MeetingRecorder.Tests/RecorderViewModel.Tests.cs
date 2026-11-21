@@ -341,7 +341,9 @@ public sealed class RecorderViewModelTests
             model.CanStart.Should().BeTrue();
             modes.SelectedIndex = 2;
             model.CanStart.Should().BeFalse();
+            model.Display.Detail.Should().Contain("Microphone unavailable");
             model.Microphone = microphone;
+            model.Display.Detail.Should().BeEmpty();
             model.CanStart.Should().BeTrue();
             model.UsesOutput.Should().BeFalse();
             SaveScreenshot(window, "dictaphone");
