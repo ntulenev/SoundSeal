@@ -21,6 +21,23 @@ public sealed class MixingTests : IDisposable
 
     private DirectoryInfo Folder => _folder ??= Directory.CreateTempSubdirectory();
 
+    /// <summary>An empty partial block following a tone contains only digital silence.</summary>
+    [Trait("Category", "Unit")]
+    [Fact(DisplayName = "Sparse mixing clears the meters and writes the exact final silent frame count")]
+    public void SilentTailShouldNotRepeatThePreviousBlock()
+    {
+        using var file = new MemorySink();
+        var meters = new List<Levels>();
+        var mixer = new IntervalMixer(0, file, meters.Add);
+        mixer.Add(Tone(false, 0, 0, 0.1, 440));
+        mixer.Drain(SECOND / 10);
+        var prefix = file.Length;
+        mixer.Drain((SECOND / 10) + (13 * RecordingFormat.TicksPerFrame));
+        Assert.Equal(26, file.Length - prefix);
+        Assert.All(file.ToArray().Skip((int)prefix), sample => Assert.Equal(0, sample));
+        Assert.Equal(default, meters[^1]);
+    }
+
     /// <summary>Twenty seconds without loopback preserve speech order and silence.</summary>
     [Trait("Category", "Unit")]
     [Fact(DisplayName = "Twenty seconds without loopback preserve speech order and silence")]

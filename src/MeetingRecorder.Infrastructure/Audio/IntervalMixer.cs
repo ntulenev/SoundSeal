@@ -9,6 +9,7 @@ namespace MeetingRecorder.Infrastructure.Audio;
 internal sealed class IntervalMixer
 {
     private const int BLOCK = 320;
+    private static readonly byte[] _silence = new byte[BLOCK * sizeof(short)];
     private readonly float[] _micBuffer = new float[BLOCK];
     private readonly float[] _outputBuffer = new float[BLOCK];
     private readonly byte[] _pcm = new byte[BLOCK * 2];
@@ -45,6 +46,15 @@ internal sealed class IntervalMixer
         while (_written < frames)
         {
             var count = (int)Math.Min(BLOCK, frames - _written);
+            var end = _written + count;
+            if (!_mic.HasSamplesBefore(end) && !_output.HasSamplesBefore(end))
+            {
+                _file.Append(new Pcm16Block(_silence.AsSpan(0, count * sizeof(short))));
+                _meter(default);
+                _written = end;
+                continue;
+            }
+
             _mic.Read(_written, _micBuffer.AsSpan(0, count));
             _output.Read(_written, _outputBuffer.AsSpan(0, count));
             var micPeak = 0f;
