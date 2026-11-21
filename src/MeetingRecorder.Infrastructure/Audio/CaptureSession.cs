@@ -117,7 +117,7 @@ internal sealed class CaptureSession : ICaptureSession
         {
             if (!_completed)
             {
-                // Also release both devices if an owner exits before normal publication.
+                // Also release the selected devices if an owner exits before normal publication.
                 _ = CompleteAsync(EmptyRecordingPolicy.Discard, _lifetime.Token).GetAwaiter().GetResult();
             }
         }

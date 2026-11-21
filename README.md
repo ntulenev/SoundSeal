@@ -2,7 +2,13 @@
 
 <img src="src/MeetingRecorder/Assets/SoundSeal.png" width="120" height="120" alt="The SoundSeal seal wearing dark sunglasses and turquoise headphones">
 
-SoundSeal records your microphone and the audio you hear in an online meeting into a single WAV file on your computer. It runs offline on Windows 11 x64. Click **Start recording** when you're ready. After the meeting, you can send the saved file to a transcription service of your choice.
+SoundSeal is a simple offline Windows recorder for meetings, audio streams and voice notes. It saves standard WAV files on your computer so you can pass them to an AI tool of your choice for transcription and summarization. You choose the tool and upload the files yourself.
+
+| Recording mode | Captures | Example |
+| --- | --- | --- |
+| Meeting | Your microphone and the selected playback device, mixed into one mono track | Both sides of an online meeting |
+| Computer audio | The selected playback device through Windows loopback | A webinar or audio stream |
+| Dictaphone | Your selected microphone | A voice memo or dictated notes |
 
 ## Screenshots
 
@@ -25,10 +31,10 @@ dotnet run --project .\src\MeetingRecorder\MeetingRecorder.csproj -c Release --n
 
 After building, you can launch `src\MeetingRecorder\bin\Release\net10.0-windows\SoundSeal.exe` directly. To run the build on another computer, copy the entire output directory and install the **.NET 10 Desktop Runtime for x64** there.
 
-## Record a meeting
+## Make a recording
 
 1. Choose **Meeting** for microphone and playback, **Computer audio** for playback only, or **Dictaphone** for microphone only. SoundSeal opens only the devices needed for that mode. Filenames begin with `Meeting-`, `Audio-` or `Dictaphone-`.
-   Under **Microphone**, choose your input device. Under **Computer audio**, choose the headphones or speakers you use to hear the other participants. SoundSeal initially selects the Windows defaults and keeps your selected devices for the entire recording, including pauses.
+   Choose the microphone or playback device required for your mode. For a meeting, select the headphones or speakers you use to hear the other participants. SoundSeal initially selects the Windows defaults and keeps your selected devices for the entire recording, including pauses.
 2. Check **Recording folder**. The default is `%LOCALAPPDATA%\MeetingRecorder\Recordings`. Enter a path or click **Browse…** to choose a folder. SoundSeal creates the folder when recording starts if it doesn't already exist.
 3. Click **Start recording**. The seal's glasses glow while recording is active, and a red dot appears beside **Recording**. Speak into the microphone, then check the other meter when someone on the call speaks. Each meter shows **Signal detected** or **Silent**. **Elapsed time** keeps counting during silence.
 4. Click **Pause** to leave a break out of the file. Both meters show **Paused** and the timer stops. Click **Resume** to continue recording to the same file.
@@ -39,6 +45,10 @@ Enable **Save in 15-minute parts** before starting a long recording to publish a
 Completed parts can be opened while recording continues. SoundSeal writes and flushes each WAV header and closes the file before publishing the final name. After an abrupt shutdown, completed parts remain in the recording folder. The open part can remain as a `.partial` file. Leave the option off to publish a single WAV at the end.
 
 SoundSeal saves one mono track as 16-bit PCM audio at 16,000 Hz. One hour of active recording uses about 115.2 MB. Filenames include the start time, for example `Meeting-2026-11-21_14-35-08.wav`. If a name is already in use, SoundSeal adds a numeric suffix.
+
+## Transcribe and summarize
+
+Click **Open folder** and select the WAV in your transcription tool. For a split recording, submit the files in part-number order, then ask the AI to summarize the combined transcript. For a meeting, you can ask it to list decisions, action items and open questions. **Copy link** copies a local file URI suitable for an application with access to that folder. Use the WAV upload option for a web service.
 
 ## Troubleshooting
 
@@ -62,12 +72,13 @@ dotnet test .\src\MeetingRecorder.slnx -c Release --filter Category=Integration
 
 For line and branch coverage, run `./scripts/Test-Coverage.ps1` in PowerShell 7. The script runs the full suite in Release, merges Coverlet results from all four test projects, and reports coverage for each application module. It saves the raw JSON reports in a separate directory under `TestResults`.
 
-The same Release coverage script was run on both revisions. Percentages combine lines and branches across test hosts, counting each location once. The contracts assembly consists of interfaces and has no executable lines.
+The same Release coverage script was run on each revision. Percentages combine lines and branches across test hosts, counting each location once. The contracts assembly consists of interfaces and has no executable lines.
 
 | Revision | Tests passed | Lines covered | Branches covered |
 | --- | ---: | ---: | ---: |
 | v1.3.0 | 104 | 887 / 1030 (86.1%) | 480 / 535 (89.7%) |
 | v2.0.0 | 141 | 1258 / 1410 (89.2%) | 593 / 646 (91.8%) |
+| v3.1.0 | 154 | 1393 / 1546 (90.1%) | 721 / 776 (92.9%) |
 
 The v2.0.0 domain suite and integration tests together exercise all 227 executable domain lines and all 96 domain branches. The full suite covers invalid value construction, immutable device and folder listings, cancellation before and during device startup, retry after cleanup, and publication after late cancellation.
 

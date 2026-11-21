@@ -4,7 +4,7 @@ using MeetingRecorder.Infrastructure.Wasapi;
 
 namespace MeetingRecorder.Infrastructure.Audio;
 
-/// <summary>Composes the file and both pinned device streams for one session.</summary>
+/// <summary>Composes the file and the pinned device streams for one session.</summary>
 internal sealed class CaptureFactory : ICaptureFactory
 {
     private readonly IRecordingClock _clock;

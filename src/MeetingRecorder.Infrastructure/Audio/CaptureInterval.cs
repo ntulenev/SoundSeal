@@ -52,7 +52,7 @@ internal sealed class CaptureInterval
         thread.Start();
     }
 
-    /// <summary>Completes with the shared timestamp after both native clients have started.</summary>
+    /// <summary>Completes with the shared timestamp after the selected native clients have started.</summary>
     internal Task<CaptureTimestamp> Started => _ready.Task;
 
     /// <summary>Commits the exclusive cutoff and waits for both workers to drain.</summary>
