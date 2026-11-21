@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 
+using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
-using MeetingRecorder.Infrastructure.Files;
 
 namespace MeetingRecorder.Infrastructure.Audio;
 
@@ -12,28 +12,36 @@ internal sealed class IntervalMixer
     private readonly float[] _micBuffer = new float[BLOCK];
     private readonly float[] _outputBuffer = new float[BLOCK];
     private readonly byte[] _pcm = new byte[BLOCK * 2];
-    private readonly WaveDestination _file;
+    private readonly IPcmSink _file;
     private readonly Action<Levels> _meter;
     private readonly SourceTrack _mic;
     private readonly SourceTrack _output;
     private readonly long _start;
     private long _written;
 
-    internal IntervalMixer(long start, WaveDestination file, Action<Levels> meter)
+    /// <summary>Aligns both tracks to the same clock origin and writes sequential PCM blocks.</summary>
+    internal IntervalMixer(CaptureTimestamp start, IPcmSink file, Action<Levels> meter)
     {
-        _start = start;
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentNullException.ThrowIfNull(meter);
+        _start = start.Ticks;
         _file = file;
         _meter = meter;
-        _mic = new(start);
-        _output = new(start);
+        _mic = new(start.Ticks);
+        _output = new(start.Ticks);
     }
 
-    internal void Add(AudioPacket packet) =>
+    /// <summary>Routes a device packet to its corresponding source timeline.</summary>
+    internal void Add(AudioPacket packet)
+    {
+        ArgumentNullException.ThrowIfNull(packet);
         (packet.Loopback ? _output : _mic).Add(packet, _written);
+    }
 
+    /// <summary>Writes complete output frames up to the exclusive clock watermark.</summary>
     internal void Drain(long boundary)
     {
-        var frames = new ActiveInterval(_start, boundary).Frames;
+        var frames = new ActiveInterval(_start, Math.Max(_start, boundary)).Frames.Value;
         while (_written < frames)
         {
             var count = (int)Math.Min(BLOCK, frames - _written);
@@ -52,7 +60,7 @@ internal sealed class IntervalMixer
                 BinaryPrimitives.WriteInt16LittleEndian(_pcm.AsSpan(i * 2), sample);
             }
 
-            _file.Append(_pcm.AsSpan(0, count * 2));
+            _file.Append(new Pcm16Block(_pcm.AsSpan(0, count * sizeof(short))));
             _meter(new(micPeak, outPeak));
             _written += count;
         }

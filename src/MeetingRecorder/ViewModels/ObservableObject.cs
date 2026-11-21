@@ -8,6 +8,7 @@ namespace MeetingRecorder.ViewModels;
 /// </summary>
 internal abstract class ObservableObject : INotifyPropertyChanged
 {
+    /// <inheritdoc/>
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>
@@ -17,7 +18,7 @@ internal abstract class ObservableObject : INotifyPropertyChanged
     /// <param name="field">The backing field to update.</param>
     /// <param name="value">The new value.</param>
     /// <param name="propertyName">The name of the changed property.</param>
-    /// <returns><see langword="true"/> when the value changed; otherwise <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> when the value changed. Otherwise <see langword="false"/>.</returns>
     protected bool SetProperty<T>(
         ref T field,
         T value,

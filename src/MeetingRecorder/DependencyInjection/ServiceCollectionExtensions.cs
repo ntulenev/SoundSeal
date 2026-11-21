@@ -1,4 +1,6 @@
+using MeetingRecorder.Abstractions;
 using MeetingRecorder.Platform;
+using MeetingRecorder.Storage;
 using MeetingRecorder.Threading;
 using MeetingRecorder.ViewModels;
 using MeetingRecorder.Views;
@@ -20,6 +22,7 @@ internal static class ServiceCollectionExtensions
             .AddSingleton(_ => new RecordingLinkClipboard(System.Windows.Clipboard.SetText))
             .AddSingleton<IFolderLauncher, FolderLauncher>()
             .AddSingleton<IFolderCatalog, FolderCatalog>()
+            .AddSingleton<IRecordingStore, WaveRecordingStore>()
             .AddSingleton<FolderBrowserViewModel>()
             .AddSingleton<RecorderViewModel>()
             .AddSingleton(provider => new MainWindow(provider.GetRequiredService<RecorderViewModel>(),

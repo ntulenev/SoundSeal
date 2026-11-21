@@ -1,6 +1,6 @@
 using MeetingRecorder.Domain;
 
-namespace MeetingRecorder.Application.Abstractions;
+namespace MeetingRecorder.Abstractions;
 
 /// <summary>Enumerates active devices without opening a recording stream.</summary>
 public interface IDeviceCatalog
@@ -8,5 +8,5 @@ public interface IDeviceCatalog
     /// <summary>Reads active endpoints and identifies the Windows multimedia defaults.</summary>
     /// <returns>Snapshots of capture and playback identities and driver-supplied names.</returns>
     /// <exception cref="RecordingException">Windows audio enumeration failed.</exception>
-    Devices Read();
+    Task<Devices> ReadAsync(CancellationToken cancellationToken);
 }

@@ -57,17 +57,60 @@ dotnet test .\src\MeetingRecorder.slnx -c Release --filter Category=Integration
 
 For line and branch coverage, run `./scripts/Test-Coverage.ps1` in PowerShell 7. The script runs the full suite in Release, merges Coverlet results from all four test projects, and reports coverage for each application module. It saves the raw JSON reports in a separate directory under `TestResults`.
 
+The same Release coverage script was run on both revisions. Percentages combine lines and branches across test hosts, counting each location once. The contracts assembly consists of interfaces and has no executable lines.
+
+| Revision | Tests passed | Lines covered | Branches covered |
+| --- | ---: | ---: | ---: |
+| v1.3.0 | 104 | 887 / 1030 (86.1%) | 480 / 535 (89.7%) |
+| v2.0.0 | 141 | 1258 / 1410 (89.2%) | 593 / 646 (91.8%) |
+
+The v2.0.0 domain suite and integration tests together exercise all 227 executable domain lines and all 96 domain branches. The full suite covers invalid value construction, immutable device and folder listings, cancellation before and during device startup, retry after cleanup, and publication after late cancellation.
+
 The four test projects cover recorder states, timing, the WPF window, mixing synthetic audio sources, and the contents of saved WAV files. The clock-drift tests simulate 44.1 kHz and 48 kHz devices with 100 ppm of relative drift over an hour. Once the dependencies are restored, the tests can run offline without a sound card.
 
 To check real hardware, record both sides of a call, try a different playback device, pause and resume, then listen to the result. In a separate short recording, disconnect the selected headset and play the saved segment. For an hour-long call, check the start and end of the audio and compare the WAV duration with the recorder's timer. You can also repeat a short recording offline.
 
-## Solution structure
+## Architecture
 
-The solution follows the conventions of DayScope at commit `c9d9845`. Both projects share baseline `.editorconfig` and `Directory.Build.props` settings, use the .NET Generic Host for dependency injection, and have a test project for each layer.
+SoundSeal follows the layer boundaries and build conventions used in DayScope at commit `c9d9845`. The WPF application is the composition root. The table lists direct dependencies on other projects in the solution.
 
-| Project | Responsibilities |
+| Project | Responsibility | Project dependencies |
+| --- | --- | --- |
+| `MeetingRecorder.Domain` | Recording values, timeline, state, device selections and publication outcomes | None |
+| `MeetingRecorder.Abstractions` | Recorder, capture session, clock, device catalog, PCM sink, recording store, folder and display timer contracts | Domain |
+| `MeetingRecorder.Application` | Serializes start, pause, resume and finish, reconciles capture failures with the final file outcome | Abstractions, Domain |
+| `MeetingRecorder.Infrastructure` | Negotiates WASAPI formats, owns native buffers, aligns device clocks, resamples and mixes the two sources | Abstractions, Domain |
+| `MeetingRecorder.Storage` | Reserves temporary files, writes and publishes WAV files, enumerates folders and opens File Explorer | Abstractions, Domain |
+| `MeetingRecorder` | WPF window, view models, clipboard, dispatcher timer and dependency injection | All five libraries |
+
+The native buffer and endpoint interfaces live beside the WASAPI adapter because their signatures use native flags and audio packets. The mixer writes to `IPcmSink`. Its unit tests inspect samples in memory, while integration tests reopen WAV files and check headers, payloads, pause boundaries and partial-file recovery.
+
+### Domain contracts
+
+| Value | Enforced at construction |
 | --- | --- |
-| `MeetingRecorder.Domain` | Defines the recording format, time intervals, recorder states, and results. It has no dependencies on other solution projects. |
-| `MeetingRecorder.Application` | Coordinates recorder state transitions and defines contracts in `Abstractions`. It depends only on the domain layer. |
-| `MeetingRecorder.Infrastructure` | NAudio adapters in `Wasapi` read packets and release the native buffers. The worker queue in `Audio` processes copies, aligns the tracks, and sends PCM samples to the writer in `Files`. |
-| `MeetingRecorder` | `Views` contains WPF windows and event handlers. `ViewModels` manages recording and folder navigation. `Platform` handles file system and File Explorer access. `Themes` defines colors and styles. |
+| `CaptureTimestamp`, `ActiveInterval`, `RecordingDuration` | Capture time uses nonnegative 100 ns ticks. The exclusive end can equal or follow the start. Active time excludes pauses. |
+| `FrameCount`, `Pcm16Block` | A nonnegative frame count must fit a recording duration. Each PCM16 block contains a whole number of two-byte samples. |
+| `SignalPeak` | Both input meters accept finite values from zero through one, inclusive. |
+| `EndpointId`, `EndpointName`, `RecordingProblem` | Device identifiers, display names and failure messages contain visible text. |
+| `RecordingFolder`, `RecordingFile`, `FolderEntryName` | Recording paths are fully qualified. Files require a final name. A chooser entry is a single directory name or a drive root. Constructing these values requires no filesystem access. |
+| `RecorderSnapshot`, `RecordingResult` | Only recording snapshots have an open interval. Terminal states carry a matching outcome. Publication requires a file, and a failed publication with a retained file or written frames requires a problem description. |
+
+### Capture configuration
+
+Edit the `AudioCapture` section in `appsettings.json` beside `SoundSeal.exe` and restart the application. Configuration is validated when the host builds. These limits apply to incoming device formats. Output remains 16 kHz mono PCM16.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `MinimumSampleRate` / `MaximumSampleRate` | 8000 / 384000 | Inclusive native rates in Hz. Both must be positive and ordered. |
+| `MaximumChannels` | 32 | Maximum native channel count, from 1 to the 32 positions in a Windows speaker mask. |
+| `AllowedEncodings` | `Pcm8,Pcm16,Pcm24,Pcm32,Float32,Float64` | Comma-separated subset of implemented little-endian decoders. |
+| `QueueCapacity` | 512 | Positive limit on pending capture messages. A full queue interrupts capture and publishes the available audio. |
+
+### Lifetimes and cancellation
+
+The user starts and stops each capture interval. Its single native thread acquires and releases WASAPI buffers on the same thread. An asynchronous channel reader mixes owned copies and feeds the destination. The WPF dispatcher timer only refreshes the display. A host-lifetime background service would outlive these recording intervals. [WASAPI buffer ownership](https://learn.microsoft.com/en-us/windows/win32/api/audioclient/nf-audioclient-iaudiocaptureclient-getbuffer) · [WPF threading model](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/threading-model) · [.NET worker services](https://learn.microsoft.com/en-us/dotnet/core/extensions/workers)
+
+Asynchronous service methods require a `CancellationToken`. Device discovery, navigation, pending commands and interval startup observe the caller's token. Canceling startup releases the endpoints and discards an empty reservation. If any samples were captured, the writer attempts to publish them. Once the recorder accepts a pause or finish, a session-owned token lets it drain accepted samples and finish the WAV header even if the originating UI command is canceled. Each asynchronous xUnit test runs with its own cancellable deadline.
+
+Public types and members have XML documentation, which the build emits beside each assembly. Members are grouped by constants and fields, constructors, events, properties, methods, and nested types. The shared `.editorconfig` and `Directory.Build.props` enable code-style analysis and treat warnings as errors.

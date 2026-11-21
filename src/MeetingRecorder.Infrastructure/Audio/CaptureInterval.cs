@@ -1,8 +1,7 @@
 using System.Threading.Channels;
 
-using MeetingRecorder.Application.Abstractions;
+using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
-using MeetingRecorder.Infrastructure.Files;
 
 namespace MeetingRecorder.Infrastructure.Audio;
 
@@ -10,21 +9,32 @@ namespace MeetingRecorder.Infrastructure.Audio;
 /// interval. Starting another interval always allocates new queues and filter state.</summary>
 internal sealed class CaptureInterval
 {
+    private const long OPEN_BOUNDARY = -1;
+    private const int POLL_MILLISECONDS = 5;
+    private const long WATERMARK_PERIOD = 25 * TimeSpan.TicksPerMillisecond;
+    private const long REORDER_DELAY = 150 * TimeSpan.TicksPerMillisecond;
+    private const long FUTURE_TOLERANCE = 100 * TimeSpan.TicksPerMillisecond;
+
     private readonly Channel<Message> _queue;
-    private readonly TaskCompletionSource<long> _ready =
+    private readonly TaskCompletionSource<CaptureTimestamp> _ready =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly IRecordingClock _clock;
-    private readonly Action<string> _interrupt;
-    private readonly Task _producer;
+    private readonly Action<RecordingProblem> _interrupt;
+    private readonly TaskCompletionSource _producer = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Task _consumer;
-    private long _boundary = long.MaxValue;
+    private long _boundary = OPEN_BOUNDARY;
 
-    private readonly record struct Message(AudioPacket? Packet, long Watermark);
-
+    /// <summary>Starts the native capture thread and asynchronous mixer for a single interval.</summary>
     internal CaptureInterval(RecordingSettings settings, IRecordingClock clock,
-        Func<string, bool, IInputEndpoint> open, WaveDestination file,
-        Action<Levels> meter, Action<string> interrupt, int capacity = 512)
+        Func<EndpointId, bool, IInputEndpoint> open, IRecordingDestination file,
+        Action<Levels> meter, Action<RecordingProblem> interrupt, int capacity, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(open);
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentNullException.ThrowIfNull(meter);
+        ArgumentNullException.ThrowIfNull(interrupt);
         _clock = clock;
         _interrupt = interrupt;
         _queue = Channel.CreateBounded<Message>(new BoundedChannelOptions(capacity)
@@ -33,50 +43,59 @@ internal sealed class CaptureInterval
             SingleWriter = true,
             AllowSynchronousContinuations = false
         });
-        _consumer = Task.Run(() => MixAsync(file, meter));
-        _producer = Task.Factory.StartNew(() => Capture(settings, open),
-            CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        _consumer = MixAsync(file, meter, cancellationToken);
+        var thread = new Thread(() => Capture(settings, open, cancellationToken))
+        {
+            IsBackground = true,
+            Name = "SoundSeal WASAPI capture"
+        };
+        thread.Start();
     }
 
-    internal Task<long> Started => _ready.Task;
+    /// <summary>Completes with the shared timestamp after both native clients have started.</summary>
+    internal Task<CaptureTimestamp> Started => _ready.Task;
 
-    internal async Task StopAsync(long boundary)
+    /// <summary>Commits the exclusive cutoff and waits for both workers to drain.</summary>
+    internal async Task StopAsync(CaptureTimestamp boundary, CancellationToken cancellationToken)
     {
-        _ = Interlocked.CompareExchange(ref _boundary, boundary, long.MaxValue);
-        await Task.WhenAll(_producer, _consumer).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        _ = Interlocked.CompareExchange(ref _boundary, boundary.Ticks, OPEN_BOUNDARY);
+        await Task.WhenAll(_producer.Task, _consumer).ConfigureAwait(false);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031",
         Justification = "The producer must settle startup and notify the owner on every thread exit.")]
-    private void Capture(RecordingSettings settings, Func<string, bool, IInputEndpoint> open)
+    private void Capture(RecordingSettings settings, Func<EndpointId, bool, IInputEndpoint> open, CancellationToken cancellationToken)
     {
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             using var mic = open(settings.MicrophoneId, false);
             using var output = open(settings.OutputId, true);
             mic.Start();
             output.Start();
-            var start = _clock.Now;
+            var start = _clock.Now.Ticks;
             _ready.SetResult(start);
             var watermark = start;
-            while (Volatile.Read(ref _boundary) == long.MaxValue)
+            while (Volatile.Read(ref _boundary) == OPEN_BOUNDARY)
             {
-                var now = _clock.Now;
+                var now = _clock.Now.Ticks;
                 mic.Drain(Enqueue);
                 output.Drain(Enqueue);
-                if (now - watermark >= TimeSpan.TicksPerMillisecond * 25)
+                if (now - watermark >= WATERMARK_PERIOD)
                 {
                     // Leave room for engine buffering and ordinary scheduler jitter.
-                    Send(new(null, now - (TimeSpan.TicksPerMillisecond * 150)));
+                    Send(new(null, now - REORDER_DELAY));
                     watermark = now;
                 }
 
-                Thread.Sleep(5);
+                _ = cancellationToken.WaitHandle.WaitOne(POLL_MILLISECONDS);
+                cancellationToken.ThrowIfCancellationRequested();
             }
 
             // Allow the engine to deliver a packet that straddles the command boundary.
             var period = mic.EnginePeriod > output.EnginePeriod ? mic.EnginePeriod : output.EnginePeriod;
-            Thread.Sleep(period + TimeSpan.FromMilliseconds(5));
+            Thread.Sleep(period + TimeSpan.FromMilliseconds(POLL_MILLISECONDS));
             mic.Drain(Enqueue);
             output.Drain(Enqueue);
         }
@@ -92,12 +111,13 @@ internal sealed class CaptureInterval
         finally
         {
             _ = _queue.Writer.TryComplete();
+            _producer.SetResult();
         }
     }
 
     private void Enqueue(AudioPacket packet)
     {
-        if (packet.Qpc < 0 || packet.Qpc > _clock.Now + (TimeSpan.TicksPerMillisecond * 100))
+        if (packet.Qpc < 0 || packet.Qpc - _clock.Now.Ticks > FUTURE_TOLERANCE)
         {
             throw new RecordingException("The device returned an invalid audio timestamp.");
         }
@@ -113,20 +133,20 @@ internal sealed class CaptureInterval
         }
     }
 
-    private void Fail(string message)
+    private void Fail(RecordingProblem message)
     {
-        _ = Interlocked.CompareExchange(ref _boundary, _clock.Now, long.MaxValue);
+        _ = Interlocked.CompareExchange(ref _boundary, _clock.Now.Ticks, OPEN_BOUNDARY);
         _interrupt(message);
     }
 
-    private async Task MixAsync(WaveDestination file, Action<Levels> meter)
+    private async Task MixAsync(IRecordingDestination file, Action<Levels> meter, CancellationToken cancellationToken)
     {
         IntervalMixer? mixer = null;
         try
         {
-            var start = await Started.ConfigureAwait(false);
+            var start = await Started.WaitAsync(cancellationToken).ConfigureAwait(false);
             mixer = new IntervalMixer(start, file, meter);
-            await foreach (var message in _queue.Reader.ReadAllAsync().ConfigureAwait(false))
+            await foreach (var message in _queue.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
                 if (message.Packet is { } packet)
                 {
@@ -134,7 +154,8 @@ internal sealed class CaptureInterval
                 }
                 else
                 {
-                    mixer.Drain(Math.Min(message.Watermark, Volatile.Read(ref _boundary)));
+                    var cutoff = Volatile.Read(ref _boundary);
+                    mixer.Drain(cutoff == OPEN_BOUNDARY ? message.Watermark : Math.Min(message.Watermark, cutoff));
                 }
             }
 
@@ -157,4 +178,6 @@ internal sealed class CaptureInterval
             // Startup failure is delivered to BeginIntervalAsync through Started.
         }
     }
+
+    private readonly record struct Message(AudioPacket? Packet, long Watermark);
 }

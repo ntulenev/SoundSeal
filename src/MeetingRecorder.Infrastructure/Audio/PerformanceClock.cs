@@ -1,11 +1,14 @@
 using System.Diagnostics;
 
-using MeetingRecorder.Application.Abstractions;
+using MeetingRecorder.Abstractions;
+using MeetingRecorder.Domain;
 
 namespace MeetingRecorder.Infrastructure.Audio;
 
+/// <summary>Converts the system performance counter to the timeline used by WASAPI.</summary>
 internal sealed class PerformanceClock : IRecordingClock
 {
-    public long Now => (long)((Int128)Stopwatch.GetTimestamp() * TimeSpan.TicksPerSecond
+    /// <inheritdoc/>
+    public CaptureTimestamp Now => (long)((Int128)Stopwatch.GetTimestamp() * TimeSpan.TicksPerSecond
         / Stopwatch.Frequency);
 }

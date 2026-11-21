@@ -7,8 +7,10 @@ using MeetingRecorder.Platform;
 
 namespace MeetingRecorder.Tests;
 
+/// <summary>Tests clipboard file URI formatting.</summary>
 public sealed class RecordingLinkClipboardTests
 {
+    /// <summary>Clipboard links preserve the recording's Windows path.</summary>
     [Trait("Category", "Unit")]
     [Theory(DisplayName = "Clipboard links preserve the recording's Windows path")]
     [InlineData(@"C:\Recordings\Meetings #1\100%20 🎙.wav", "file:///C:/Recordings/Meetings%20%231/100%2520%20%F0%9F%8E%99.wav")]
@@ -22,6 +24,7 @@ public sealed class RecordingLinkClipboardTests
         written.Should().Be(expected);
     }
 
+    /// <summary>A busy clipboard can be retried.</summary>
     [Trait("Category", "Unit")]
     [Fact(DisplayName = "A busy clipboard can be retried")]
     public void CopyShouldExplainClipboardFailure()

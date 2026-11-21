@@ -10,8 +10,10 @@ namespace MeetingRecorder.Infrastructure.Wasapi;
 /// <summary>Validates the WASAPI mix format before either endpoint enters capture.</summary>
 internal static class WasapiFormatMapper
 {
-    internal static InputFormat FromMixFormat(WaveFormat wave)
+    /// <summary>Maps a native WAVEFORMAT descriptor to a validated decoder layout.</summary>
+    internal static InputFormat FromMixFormat(WaveFormat wave, AudioCaptureOptions? options = null)
     {
+        ArgumentNullException.ThrowIfNull(wave);
         var encoding = wave.Encoding;
         var mask = 0;
         if (wave is WaveFormatExtensible extended)
@@ -42,6 +44,6 @@ internal static class WasapiFormatMapper
         }
 
         return new(wave.SampleRate, wave.Channels, wave.BitsPerSample,
-            encoding == WaveFormatEncoding.IeeeFloat, mask);
+            encoding == WaveFormatEncoding.IeeeFloat, mask, options);
     }
 }

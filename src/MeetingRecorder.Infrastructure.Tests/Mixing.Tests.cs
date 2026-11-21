@@ -2,43 +2,49 @@ using System.Buffers.Binary;
 
 using FluentAssertions;
 
+using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
 using MeetingRecorder.Infrastructure.Audio;
-using MeetingRecorder.Infrastructure.Files;
+using MeetingRecorder.Storage;
 
 namespace MeetingRecorder.Infrastructure.Tests;
 
+/// <summary>Tests timeline alignment and two-source mixing.</summary>
 public sealed class MixingTests : IDisposable
 {
-    private static readonly InputFormat MIC = new(44100, 1, 16, false, 0);
-    private static readonly InputFormat PLAYBACK = new(48000, 2, 32, true, 3);
-    private readonly DirectoryInfo _folder = Directory.CreateTempSubdirectory();
     private const long SECOND = TimeSpan.TicksPerSecond;
 
-    [Trait("Category", "Integration")]
+    private static readonly InputFormat MIC = new(44100, 1, 16, false, 0);
+    private static readonly InputFormat PLAYBACK = new(48000, 2, 32, true, 3);
+
+    private DirectoryInfo? _folder;
+
+    private DirectoryInfo Folder => _folder ??= Directory.CreateTempSubdirectory();
+
+    /// <summary>Twenty seconds without loopback preserve speech order and silence.</summary>
+    [Trait("Category", "Unit")]
     [Fact(DisplayName = "Twenty seconds without loopback preserve speech order and silence")]
     public void LatePlaybackShouldKeepItsTimestamp()
     {
-        using var file = WaveDestination.Create(_folder.FullName, DateTime.Now);
+        using var file = new MemorySink();
         var mixer = new IntervalMixer(0, file, _ => { });
         mixer.Add(Tone(false, 0, 0, 0.1, 400));
         mixer.Drain(20 * SECOND);
         mixer.Add(Tone(true, 0, 20 * SECOND, 0.1, 800));
         mixer.Drain(22 * SECOND);
-        var result = file.Complete(false, null);
-
-        var samples = Read(result);
+        var samples = Decode(file.ToArray());
         samples.Length.Should().Be(22 * 16000);
         FirstPeak(samples, 16000, 250).Should().BeInRange(320000, 320040);
         samples.Skip(322000).Should().OnlyContain(v => v == 0);
         Energy(samples, 0, 1000, 400).Should().BeGreaterThan(0.12);
     }
 
-    [Trait("Category", "Integration")]
+    /// <summary>Separate post-gain meters and WAV frequencies follow both inputs.</summary>
+    [Trait("Category", "Unit")]
     [Fact(DisplayName = "Separate post-gain meters and WAV frequencies follow both inputs")]
     public void MetersShouldDescribeExactlyTheWrittenSources()
     {
-        using var file = WaveDestination.Create(_folder.FullName, DateTime.Now);
+        using var file = new MemorySink();
         var levels = new Levels();
         var mixer = new IntervalMixer(0, file, l => levels = l);
         for (var i = 0; i < 4; i++)
@@ -48,12 +54,11 @@ public sealed class MixingTests : IDisposable
             mixer.Add(Tone(false, i * 44100, i * SECOND, 1, mic ? 431 : 0));
             mixer.Add(Tone(true, i * 48000, i * SECOND, 1, output ? 827 : 0));
             mixer.Drain((i + 1) * SECOND);
-            (levels.Microphone > 0.1).Should().Be(mic);
-            (levels.Computer > 0.1).Should().Be(output);
+            (levels.Microphone.Value > 0.1).Should().Be(mic);
+            (levels.Computer.Value > 0.1).Should().Be(output);
         }
 
-        var result = file.Complete(false, null);
-        var samples = Read(result);
+        var samples = Decode(file.ToArray());
         for (var i = 0; i < 4; i++)
         {
             var start = (16000 * i) + 1000;
@@ -66,11 +71,12 @@ public sealed class MixingTests : IDisposable
         samples.Max(v => Math.Abs((int)v)).Should().BeLessThan(32000);
     }
 
+    /// <summary>Pause trims crossing packets and excludes the entire paused tone.</summary>
     [Trait("Category", "Integration")]
     [Fact(DisplayName = "Pause trims crossing packets and excludes the entire paused tone")]
     public void ResumeShouldAppendOnlyActiveSamples()
     {
-        using var file = WaveDestination.Create(_folder.FullName, DateTime.Now);
+        using var file = WaveDestination.Create(Folder.FullName, DateTime.Now);
         var before = new IntervalMixer(0, file, _ => { });
         before.Add(Tone(false, 0, 49 * SECOND / 10, 0.1, 440));
         before.Add(Tone(true, 0, 5 * SECOND, 0.2, 3000));
@@ -80,7 +86,7 @@ public sealed class MixingTests : IDisposable
         after.Add(Tone(false, 4410, 8 * SECOND, 0.1, 880));
         after.Drain(13 * SECOND);
 
-        var samples = Read(file.Complete(false, null));
+        var samples = Read(file.Complete(EmptyRecordingPolicy.Keep, null));
         samples.Length.Should().Be(160000);
         Energy(samples, 78500, 1400, 440).Should().BeGreaterThan(0.1);
         Energy(samples, 80100, 1400, 880).Should().BeGreaterThan(0.1);
@@ -89,11 +95,12 @@ public sealed class MixingTests : IDisposable
         samples.Skip(82000).Should().OnlyContain(v => v == 0);
     }
 
+    /// <summary>Packets crossing pause and resume boundaries are trimmed by sample time.</summary>
     [Trait("Category", "Integration")]
     [Fact(DisplayName = "Packets crossing pause and resume boundaries are trimmed by sample time")]
     public void CrossingPacketsShouldExcludePauseOnlySignal()
     {
-        using var file = WaveDestination.Create(_folder.FullName, DateTime.Now);
+        using var file = WaveDestination.Create(Folder.FullName, DateTime.Now);
         var first = new IntervalMixer(0, file, _ => { });
         var lastPacket = Tone(false, 0, 9 * SECOND / 10, 0.2, 440);
         var half = lastPacket.Data.Length / 2;
@@ -108,13 +115,14 @@ public sealed class MixingTests : IDisposable
         second.Add(firstPacket);
         second.Drain(5 * SECOND);
 
-        var samples = Read(file.Complete(false, null));
+        var samples = Read(file.Complete(EmptyRecordingPolicy.Keep, null));
         samples.Length.Should().Be(32000);
         Energy(samples, 14500, 1400, 440).Should().BeGreaterThan(0.1);
         Energy(samples, 16100, 1400, 880).Should().BeGreaterThan(0.1);
         Energy(samples, 14400, 3200, 3000).Should().BeLessThan(0.002);
     }
 
+    /// <summary>Center dialogue survives channel-role downmix and LFE is excluded.</summary>
     [Trait("Category", "Unit")]
     [Fact(DisplayName = "Center dialogue survives channel-role downmix and LFE is excluded")]
     public void CenterShouldSurviveDownmix()
@@ -128,6 +136,7 @@ public sealed class MixingTests : IDisposable
         format.Decode(bytes).Should().Be(0);
     }
 
+    /// <summary>One missing timestamp is extrapolated and repeated errors interrupt.</summary>
     [Trait("Category", "Unit")]
     [Fact(DisplayName = "One missing timestamp is extrapolated and repeated errors interrupt")]
     public void InvalidTimestampShouldHaveBoundedRecovery()
@@ -140,13 +149,14 @@ public sealed class MixingTests : IDisposable
         act.Should().Throw<RecordingException>().WithMessage("*timestamps*");
     }
 
+    /// <summary>An hour with 100 ppm clock drift preserves paired marker timing.</summary>
     [Trait("Category", "Integration")]
     [Theory(DisplayName = "An hour with 100 ppm clock drift preserves paired marker timing")]
     [InlineData(44100, 48000)]
     [InlineData(48000, 44100)]
     public void DeviceDriftShouldKeepMarkersAligned(int micRate, int outputRate)
     {
-        using var file = WaveDestination.Create(_folder.FullName, DateTime.Now);
+        using var file = WaveDestination.Create(Folder.FullName, DateTime.Now);
         var mixer = new IntervalMixer(0, file, _ => { });
         var micFormat = new InputFormat(micRate, 1, 16, false, 0);
         var outFormat = new InputFormat(outputRate, 1, 16, false, 0);
@@ -163,9 +173,9 @@ public sealed class MixingTests : IDisposable
         }
 
         mixer.Drain(3600 * SECOND);
-        var result = file.Complete(false, null);
-        result.Frames.Should().Be(3600L * 16000);
-        using var stream = File.OpenRead(result.Path!);
+        var result = file.Complete(EmptyRecordingPolicy.Keep, null);
+        result.Frames.Value.Should().Be(3600L * 16000);
+        using var stream = File.OpenRead(result.Path!.Value);
         foreach (var second in new[] { 0, 3599 })
         {
             stream.Position = 44 + (second * 32000L);
@@ -178,6 +188,33 @@ public sealed class MixingTests : IDisposable
             output.Should().BeInRange(4800 - 320, 4800 + 320);
             Math.Abs(output - mic - 1600).Should().BeLessThan(800);
         }
+    }
+
+    /// <inheritdoc/>
+    public void Dispose() => _folder?.Delete(true);
+
+    internal static AudioPacket Tone(bool playback, long position, long qpc,
+        double seconds, double hz)
+    {
+        var format = playback ? PLAYBACK : MIC;
+        var frames = (int)Math.Round(seconds * format.Rate);
+        var bytes = hz == 0 ? [] : new byte[frames * format.Stride];
+        for (var i = 0; hz > 0 && i < frames; i++)
+        {
+            var amplitude = 0.86 * Math.Sin(2 * Math.PI * hz * i / format.Rate);
+            var frame = bytes.AsSpan(i * format.Stride);
+            if (playback)
+            {
+                BinaryPrimitives.WriteSingleLittleEndian(frame, (float)amplitude);
+                BinaryPrimitives.WriteSingleLittleEndian(frame[4..], (float)amplitude);
+            }
+            else
+            {
+                BinaryPrimitives.WriteInt16LittleEndian(frame, (short)(amplitude * 32767));
+            }
+        }
+
+        return new(playback, format, position, qpc, frames, bytes);
     }
 
     private static AudioPacket MarkerPacket(InputFormat format, bool playback, int block,
@@ -207,33 +244,9 @@ public sealed class MixingTests : IDisposable
         return new(playback, format, position, (long)(time * SECOND), count, bytes);
     }
 
-    internal static AudioPacket Tone(bool playback, long position, long qpc,
-        double seconds, double hz)
-    {
-        var format = playback ? PLAYBACK : MIC;
-        var frames = (int)Math.Round(seconds * format.Rate);
-        var bytes = hz == 0 ? [] : new byte[frames * format.Stride];
-        for (var i = 0; hz > 0 && i < frames; i++)
-        {
-            var amplitude = 0.86 * Math.Sin(2 * Math.PI * hz * i / format.Rate);
-            var frame = bytes.AsSpan(i * format.Stride);
-            if (playback)
-            {
-                BinaryPrimitives.WriteSingleLittleEndian(frame, (float)amplitude);
-                BinaryPrimitives.WriteSingleLittleEndian(frame[4..], (float)amplitude);
-            }
-            else
-            {
-                BinaryPrimitives.WriteInt16LittleEndian(frame, (short)(amplitude * 32767));
-            }
-        }
-
-        return new(playback, format, position, qpc, frames, bytes);
-    }
-
     private static short[] Read(RecordingResult result)
     {
-        using var file = File.Open(result.Path!, FileMode.Open, FileAccess.Read, FileShare.None);
+        using var file = File.Open(result.Path!.Value, FileMode.Open, FileAccess.Read, FileShare.None);
         using var reader = new BinaryReader(file);
         var header = reader.ReadBytes(44);
         header.AsSpan(0, 4).SequenceEqual("RIFF"u8).Should().BeTrue();
@@ -271,5 +284,8 @@ public sealed class MixingTests : IDisposable
         return Math.Sqrt((real * real) + (imaginary * imaginary)) / count / 32768;
     }
 
-    public void Dispose() => _folder.Delete(true);
+    private sealed class MemorySink : MemoryStream, IPcmSink
+    {
+        public void Append(Pcm16Block block) => Write(block.Bytes);
+    }
 }
