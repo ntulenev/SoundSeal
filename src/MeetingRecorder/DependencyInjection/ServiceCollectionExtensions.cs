@@ -1,3 +1,4 @@
+using MeetingRecorder.Platform;
 using MeetingRecorder.Threading;
 using MeetingRecorder.ViewModels;
 using MeetingRecorder.Views;
@@ -16,7 +17,11 @@ internal static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         return services.AddSingleton<IUiTimer, UiTimer>()
+            .AddSingleton<IFolderLauncher, FolderLauncher>()
+            .AddSingleton<IFolderCatalog, FolderCatalog>()
+            .AddSingleton<FolderBrowserViewModel>()
             .AddSingleton<RecorderViewModel>()
-            .AddSingleton(provider => new MainWindow(provider.GetRequiredService<RecorderViewModel>()));
+            .AddSingleton(provider => new MainWindow(provider.GetRequiredService<RecorderViewModel>(),
+                provider.GetRequiredService<FolderBrowserViewModel>()));
     }
 }

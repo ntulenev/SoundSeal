@@ -6,9 +6,9 @@ using MeetingRecorder.Domain;
 
 namespace MeetingRecorder.Platform;
 
-internal static class FolderLauncher
+internal sealed class FolderLauncher : IFolderLauncher
 {
-    internal static void Open(string file)
+    public void Open(string file)
     {
         try
         {

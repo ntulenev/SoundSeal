@@ -3,7 +3,6 @@ using System.Threading.Channels;
 using MeetingRecorder.Application.Abstractions;
 using MeetingRecorder.Domain;
 using MeetingRecorder.Infrastructure.Files;
-using MeetingRecorder.Infrastructure.Wasapi;
 
 namespace MeetingRecorder.Infrastructure.Audio;
 

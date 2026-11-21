@@ -8,6 +8,7 @@ using FluentAssertions;
 using MeetingRecorder.Application.Abstractions;
 using MeetingRecorder.DependencyInjection;
 using MeetingRecorder.Domain;
+using MeetingRecorder.Platform;
 using MeetingRecorder.Threading;
 using MeetingRecorder.ViewModels;
 using MeetingRecorder.Views;
@@ -37,7 +38,8 @@ public sealed class RecorderViewModelTests
         var catalog = new Mock<IDeviceCatalog>(MockBehavior.Strict);
         catalog.Setup(c => c.Read()).Returns(new Devices([mic], [output, defaultOut]));
         var timer = new TestTimer();
-        using var model = new RecorderViewModel(recorder.Object, catalog.Object, timer);
+        using var model = new RecorderViewModel(recorder.Object, catalog.Object, timer,
+            new FolderLauncher());
         await model.InitializeAsync();
         model.Output.Should().Be(defaultOut);
         model.Output = output;
