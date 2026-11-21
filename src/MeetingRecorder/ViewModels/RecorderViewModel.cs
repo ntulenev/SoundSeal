@@ -14,21 +14,24 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     private readonly IDeviceCatalog _devices;
     private readonly IUiTimer _timer;
     private readonly IFolderLauncher _folders;
+    private readonly RecordingLinkClipboard _clipboard;
     private string _folder = Path.Combine(Environment.GetFolderPath(
         Environment.SpecialFolder.LocalApplicationData), "MeetingRecorder", "Recordings");
     private Endpoint? _microphone;
     private Endpoint? _output;
     private string _notice = string.Empty;
+    private string _copyLinkStatus = string.Empty;
     private RecorderDisplay _display;
     private bool _refreshing;
 
     public RecorderViewModel(IRecorder recorder, IDeviceCatalog devices, IUiTimer timer,
-        IFolderLauncher folders)
+        IFolderLauncher folders, RecordingLinkClipboard clipboard)
     {
         _recorder = recorder;
         _devices = devices;
         _timer = timer;
         _folders = folders;
+        _clipboard = clipboard;
         _display = ReadDisplay();
         _timer.Tick += OnTick;
     }
@@ -67,6 +70,10 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     }
 
     public RecorderDisplay Display => _display;
+    public string CopyLinkStatus {
+        get => _copyLinkStatus;
+        private set => SetProperty(ref _copyLinkStatus, value);
+    }
     public bool CanEdit => _display.CanEdit && !_refreshing;
     public bool CanStart => CanEdit && Microphone is not null && Output is not null
         && !string.IsNullOrWhiteSpace(Folder);
@@ -136,6 +143,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         }
 
         _notice = string.Empty;
+        CopyLinkStatus = string.Empty;
         return ShowTransitionAsync(_recorder.StartAsync(new(Microphone!.Id, Output!.Id, Folder)));
     }
 
@@ -149,6 +157,24 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         Refresh();
         await operation;
         Refresh();
+    }
+
+    internal void CopyRecordingLink()
+    {
+        if (Display is not { CanCopyLink: true, File: { } file })
+        {
+            return;
+        }
+
+        try
+        {
+            _clipboard.Copy(file);
+            CopyLinkStatus = "Link copied.";
+        }
+        catch (RecordingException ex)
+        {
+            CopyLinkStatus = ex.Message;
+        }
     }
 
     internal void OpenFolder()

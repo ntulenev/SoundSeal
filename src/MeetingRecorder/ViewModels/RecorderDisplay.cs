@@ -6,7 +6,7 @@ namespace MeetingRecorder.ViewModels;
 
 /// <summary>English feedback and action availability derived from one recorder snapshot.</summary>
 internal sealed record RecorderDisplay(RecorderState State, string Elapsed, Levels Peaks,
-    string? File, string Detail)
+    string? File, string Detail, bool CanCopyLink)
 {
     internal static RecorderDisplay From(RecorderSnapshot snapshot, TimeSpan elapsed,
         Levels peaks, string notice)
@@ -23,7 +23,8 @@ internal sealed record RecorderDisplay(RecorderState State, string Elapsed, Leve
 
         return new(snapshot.State, string.Create(CultureInfo.InvariantCulture,
             $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"),
-            snapshot.State == RecorderState.Recording ? peaks : default, result?.Path, detail);
+            snapshot.State == RecorderState.Recording ? peaks : default, result?.Path, detail,
+            result is { Published: true, Path: not null });
     }
 
     public bool CanEdit => State is RecorderState.Ready or RecorderState.Saved or RecorderState.Error;

@@ -39,7 +39,7 @@ public sealed class RecorderViewModelTests
         catalog.Setup(c => c.Read()).Returns(new Devices([mic], [output, defaultOut]));
         var timer = new TestTimer();
         using var model = new RecorderViewModel(recorder.Object, catalog.Object, timer,
-            new FolderLauncher());
+            new FolderLauncher(), new RecordingLinkClipboard(Clipboard.SetText));
         await model.InitializeAsync();
         model.Output.Should().Be(defaultOut);
         model.Output = output;
@@ -123,6 +123,7 @@ public sealed class RecorderViewModelTests
             TimeSpan.Zero, default, string.Empty);
         display.Detail.Should().Contain(outcome);
         display.File.Should().Be(path);
+        display.CanCopyLink.Should().Be(published && path is not null);
     }
 
     [Trait("Category", "Integration")]
@@ -149,7 +150,9 @@ public sealed class RecorderViewModelTests
         CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("de-DE");
         var recorder = new Mock<IRecorder>(MockBehavior.Strict);
         var state = RecorderState.Ready;
-        recorder.SetupGet(r => r.Snapshot).Returns(() => new RecorderSnapshot(state));
+        var saved = new RecordingResult(@"C:\Team meetings\June #1.wav", 1600, null, true);
+        recorder.SetupGet(r => r.Snapshot).Returns(() => new RecorderSnapshot(state,
+            Result: state == RecorderState.Saved ? saved : null));
         recorder.SetupGet(r => r.Elapsed).Returns(TimeSpan.Zero);
         recorder.SetupGet(r => r.Levels).Returns(default(Levels));
         var catalog = new Mock<IDeviceCatalog>(MockBehavior.Strict);
@@ -158,7 +161,9 @@ public sealed class RecorderViewModelTests
         var alternate = new Endpoint("alt", "Alternate output", false);
         catalog.Setup(c => c.Read()).Returns(new Devices([microphone], [output, alternate]));
         var timer = new TestTimer();
+        string? copied = null;
         using var services = new ServiceCollection().AddMeetingRecorderPresentation()
+            .AddSingleton(new RecordingLinkClipboard(text => copied = text))
             .AddSingleton(recorder.Object).AddSingleton(catalog.Object)
             .AddSingleton<IUiTimer>(timer).BuildServiceProvider();
         var window = services.GetRequiredService<MainWindow>();
@@ -204,7 +209,25 @@ public sealed class RecorderViewModelTests
             model.Microphone.Should().Be(microphone);
             model.Output.Should().Be(output);
             window.Icon.Should().NotBeNull();
-            Descendants(window).OfType<Image>().Single().Source.Should().NotBeNull();
+            var logo = Descendants(window).OfType<Image>().Single();
+            logo.Source.Should().NotBeNull();
+            logo.ActualWidth.Should().BeGreaterThanOrEqualTo(90);
+            var minimize = FindButton("─");
+            var close = FindButton("✕");
+            var minimizeRight = minimize.TranslatePoint(new Point(minimize.ActualWidth, 0), window).X;
+            close.TranslatePoint(new Point(0, 0), window).X.Should().BeGreaterThan(minimizeRight);
+            var copy = FindButton("Copy link");
+            copy.IsVisible.Should().BeFalse();
+            state = RecorderState.Saved;
+            timer.Pulse();
+            window.UpdateLayout();
+            copy.IsVisible.Should().BeTrue();
+            var resultArea = Descendants(window).OfType<ScrollViewer>().Single();
+            var copyBottom = copy.TranslatePoint(new Point(0, copy.ActualHeight), resultArea).Y;
+            copyBottom.Should().BeLessThanOrEqualTo(resultArea.ViewportHeight);
+            copy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            copied.Should().Be("file:///C:/Team%20meetings/June%20%231.wav");
+            model.CopyLinkStatus.Should().Be("Link copied.");
             var selector = Descendants(window).OfType<ComboBox>().Single(c => c.Items.Count == 2);
             selector.IsDropDownOpen = true;
             selector.UpdateLayout();
@@ -226,6 +249,8 @@ public sealed class RecorderViewModelTests
                 .Returns(Task.CompletedTask);
             FindButton("Start recording").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             window.Title.Should().Contain("Recording");
+            model.CopyLinkStatus.Should().BeEmpty();
+            copy.IsVisible.Should().BeFalse();
             FindButton("Pause").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             FindButton("Resume").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             model.Display.CanPause.Should().BeTrue();
@@ -282,7 +307,7 @@ public sealed class RecorderViewModelTests
         catalog.Setup(c => c.Read()).Returns(new Devices(hasMic ? [device] : [],
             hasOutput ? [device] : []));
         using var model = new RecorderViewModel(recorder.Object, catalog.Object,
-            new TestTimer(), new FolderLauncher());
+            new TestTimer(), new FolderLauncher(), new RecordingLinkClipboard(Clipboard.SetText));
         await model.InitializeAsync();
         model.CanStart.Should().BeFalse();
         model.Display.Detail.Should().Contain(notice);
@@ -302,7 +327,7 @@ public sealed class RecorderViewModelTests
             .Throws(new RecordingException("Windows audio is unavailable."))
             .Returns(new Devices([endpoint], [endpoint]));
         using var model = new RecorderViewModel(recorder.Object, catalog.Object,
-            new TestTimer(), new FolderLauncher());
+            new TestTimer(), new FolderLauncher(), new RecordingLinkClipboard(Clipboard.SetText));
         await model.InitializeAsync();
         model.CanStart.Should().BeTrue();
         await model.RefreshDevicesAsync();
@@ -324,7 +349,8 @@ public sealed class RecorderViewModelTests
         var timer = new TestTimer();
         var launcher = new TestLauncher();
         using var model = new RecorderViewModel(recorder.Object,
-            new Mock<IDeviceCatalog>(MockBehavior.Strict).Object, timer, launcher);
+            new Mock<IDeviceCatalog>(MockBehavior.Strict).Object, timer, launcher,
+            new RecordingLinkClipboard(Clipboard.SetText));
         model.OpenFolder();
         launcher.Path.Should().BeNull();
 

@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private async void OnPauseAsync(object sender, RoutedEventArgs e) => await _model.TogglePauseAsync();
     private async void OnFinishAsync(object sender, RoutedEventArgs e) => await _model.FinishAsync();
     private void OnOpen(object sender, RoutedEventArgs e) => _model.OpenFolder();
+    private void OnCopyLink(object sender, RoutedEventArgs e) => _model.CopyRecordingLink();
     private void OnMinimize(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 
