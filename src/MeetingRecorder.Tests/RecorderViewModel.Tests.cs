@@ -210,8 +210,10 @@ public sealed class RecorderViewModelTests
             model.Output.Should().Be(output);
             window.Icon.Should().NotBeNull();
             var logo = Descendants(window).OfType<Image>().Single();
-            logo.Source.Should().NotBeNull();
-            logo.ActualWidth.Should().BeGreaterThanOrEqualTo(90);
+            var idleLogo = logo.Source;
+            idleLogo.Should().NotBeNull();
+            logo.Width.Should().Be(105.6);
+            logo.Height.Should().Be(105.6);
             var minimize = FindButton("─");
             var close = FindButton("✕");
             var minimizeRight = minimize.TranslatePoint(new Point(minimize.ActualWidth, 0), window).X;
@@ -221,6 +223,7 @@ public sealed class RecorderViewModelTests
             state = RecorderState.Saved;
             timer.Pulse();
             window.UpdateLayout();
+            logo.Source.Should().BeSameAs(idleLogo);
             copy.IsVisible.Should().BeTrue();
             var resultArea = Descendants(window).OfType<ScrollViewer>().Single();
             var copyBottom = copy.TranslatePoint(new Point(0, copy.ActualHeight), resultArea).Y;
@@ -249,10 +252,14 @@ public sealed class RecorderViewModelTests
                 .Returns(Task.CompletedTask);
             FindButton("Start recording").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             window.Title.Should().Contain("Recording");
+            var recordingLogo = logo.Source;
+            recordingLogo.Should().NotBeNull().And.NotBeSameAs(idleLogo);
             model.CopyLinkStatus.Should().BeEmpty();
             copy.IsVisible.Should().BeFalse();
             FindButton("Pause").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            logo.Source.Should().BeSameAs(idleLogo);
             FindButton("Resume").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            logo.Source.Should().BeSameAs(recordingLogo);
             model.Display.CanPause.Should().BeTrue();
             window.Close();
             FindButton("Finish and exit").IsVisible.Should().BeTrue();
@@ -263,6 +270,7 @@ public sealed class RecorderViewModelTests
             FindButton("Finish and exit").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             window.IsVisible.Should().BeTrue();
             model.Display.Status.Should().Be("Error");
+            logo.Source.Should().BeSameAs(idleLogo);
             recorder.Setup(r => r.FinishAsync()).Callback(() => state = RecorderState.Saved)
                 .Returns(Task.CompletedTask);
             FindButton("Start recording").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
