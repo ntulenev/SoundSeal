@@ -31,6 +31,13 @@ SoundSeal is a simple offline Windows recorder for meetings, audio streams and v
 </details>
 
 <details>
+<summary>Compact view during a meeting</summary>
+
+![Always-on-top recorder showing elapsed time, recording status, Start, Stop, Finish and Full view](docs/screenshots/compact.png)
+
+</details>
+
+<details>
 <summary>Saved recording</summary>
 
 ![A saved WAV with its file path and Copy link button](docs/screenshots/saved.png)
@@ -65,6 +72,8 @@ After building, you can launch `src\MeetingRecorder\bin\Release\net10.0-windows\
 3. Click **Start recording**. The seal's glasses glow while recording is active, and a red dot appears beside **Recording**. Speak into the microphone, then check the other meter when someone on the call speaks. Each meter shows **Signal detected** or **Silent**. **Elapsed time** keeps counting during silence.
 4. Click **Pause** to leave a break out of the file. Both meters show **Paused** and the timer stops. Click **Resume** to continue recording to the same file.
 5. Click **Finish recording**. When the status changes to **Saved**, the window shows the duration and full file path. Click **Copy link** beside the path to copy a `file://` link to the WAV, or **Open folder** to find it in File Explorer. Anyone using the link needs access to the same file location. If you close the window during a recording, choose **Finish and exit** to save it or **Return to recorder** to keep the session open.
+
+During a recording or pause, click **Compact view** to keep the timer, status and controls above your call window. Drag the timer to move the compact window. **Stop** pauses the current recording and **Start** resumes it. **Full view** restores your original window while the session continues. **Finish** immediately returns to the full window, where you can see the saved WAV or the list of parts.
 
 Enable **Save in 15-minute parts** before starting a long recording to publish an independent WAV after every 15 minutes of captured audio. All modes support this option. Pauses stop the part clock. Finishing saves the remaining audio, and the result list shows the parts in order with a **Copy link** action on each row. Files in one session share a name prefix and use suffixes such as `Part-0001.wav` and `Part-0002.wav`.
 
@@ -114,6 +123,7 @@ The same Release coverage script was run on each revision. Percentages combine l
 | v3.1.5 | 159 | 1401 / 1554 (90.2%) | 733 / 788 (93.0%) |
 | v3.1.7 | 166 | 1404 / 1557 (90.2%) | 739 / 794 (93.1%) |
 | v3.1.8 | 166 | 1406 / 1559 (90.2%) | 740 / 795 (93.1%) |
+| v3.2.0 | 168 | 1455 / 1606 (90.6%) | 759 / 811 (93.6%) |
 
 The v2.0.0 domain suite and integration tests together exercise all 227 executable domain lines and all 96 domain branches. The full suite covers invalid value construction, immutable device and folder listings, cancellation before and during device startup, retry after cleanup, and publication after late cancellation.
 

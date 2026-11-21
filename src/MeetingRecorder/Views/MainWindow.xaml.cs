@@ -17,6 +17,8 @@ public partial class MainWindow : Window
     private readonly RecorderViewModel _model;
     private readonly FolderBrowserViewModel _browser;
     private bool _finishingExit;
+    private Rect? _fullBounds;
+    private WindowState _fullWindowState;
 
     /// <summary>Binds the recorder and folder chooser to their views.</summary>
     internal MainWindow(RecorderViewModel model, FolderBrowserViewModel browser)
@@ -35,6 +37,7 @@ public partial class MainWindow : Window
     /// <inheritdoc/>
     protected override void OnClosed(EventArgs e)
     {
+        _model.PropertyChanged -= OnCompactRecorderChanged;
         _lifetime.Cancel();
         _lifetime.Dispose();
         base.OnClosed(e);
@@ -52,8 +55,64 @@ public partial class MainWindow : Window
     private void OnPause(object sender, RoutedEventArgs e) =>
         RunAsync(_model.TogglePauseAsync, _lifetime.Token);
 
-    private void OnFinish(object sender, RoutedEventArgs e) =>
+    private void OnFinish(object sender, RoutedEventArgs e)
+    {
         RunAsync(_model.FinishAsync, _lifetime.Token);
+        RestoreFullView();
+    }
+
+    private void OnCompactView(object sender, RoutedEventArgs e)
+    {
+        var anchor = CompactButton.PointToScreen(new Point(CompactButton.ActualWidth, 0));
+        var position = PresentationSource.FromVisual(this).CompositionTarget.TransformFromDevice.Transform(anchor);
+        _fullWindowState = WindowState;
+        _fullBounds = WindowState == WindowState.Normal ? new Rect(Left, Top, ActualWidth, ActualHeight) : RestoreBounds;
+        WindowState = WindowState.Normal;
+        ResizeMode = ResizeMode.NoResize;
+        MinWidth = MinHeight = 0;
+        Width = CompactSurface.Width;
+        Height = CompactSurface.Height;
+        Left = position.X - Width;
+        Top = position.Y;
+        RecorderSurface.Visibility = Visibility.Collapsed;
+        CompactSurface.Visibility = Visibility.Visible;
+        Topmost = true;
+        _model.PropertyChanged += OnCompactRecorderChanged;
+        _ = FullViewButton.Focus();
+    }
+
+    private void OnFullView(object sender, RoutedEventArgs e) => RestoreFullView();
+
+    private void OnCompactRecorderChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(RecorderViewModel.Display) && _model.Display.State is RecorderState.Error or RecorderState.Saved)
+        {
+            RestoreFullView();
+        }
+    }
+
+    private void RestoreFullView()
+    {
+        if (_fullBounds is not { } bounds)
+        {
+            return;
+        }
+
+        _fullBounds = null;
+        _model.PropertyChanged -= OnCompactRecorderChanged;
+        Topmost = false;
+        CompactSurface.Visibility = Visibility.Collapsed;
+        RecorderSurface.Visibility = Visibility.Visible;
+        ClearValue(MinWidthProperty);
+        ClearValue(MinHeightProperty);
+        ClearValue(ResizeModeProperty);
+        Width = bounds.Width;
+        Height = bounds.Height;
+        Left = bounds.Left;
+        Top = bounds.Top;
+        WindowState = _fullWindowState;
+        _ = CompactButton.Focus();
+    }
 
     private static async void RunAsync(Func<CancellationToken, Task> action, CancellationToken cancellationToken)
     {
@@ -95,6 +154,7 @@ public partial class MainWindow : Window
         e.Cancel = true;
         if (!_finishingExit && _model.Display.CanFinish)
         {
+            RestoreFullView();
             ShowPanel(folder: false);
             _ = ReturnButton.Focus();
         }
