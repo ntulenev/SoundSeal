@@ -233,6 +233,23 @@ public sealed class RecorderViewModelTests
         (model.Display.File?.Value).Should().Be(FILE);
     }
 
+    private static void SaveScreenshot(Window window, string name)
+    {
+        if (Environment.GetEnvironmentVariable("SOUNDSEAL_SCREENSHOTS") is not { Length: > 0 } folder)
+        {
+            return;
+        }
+
+        window.UpdateLayout();
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)window.ActualWidth,
+            (int)window.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        bitmap.Render(window);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        using var output = System.IO.File.Create(System.IO.Path.Combine(folder, name + ".png"));
+        encoder.Save(output);
+    }
+
     private static async Task CheckWindowAsync(CancellationToken cancellationToken)
     {
         CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("de-DE");
@@ -240,8 +257,8 @@ public sealed class RecorderViewModelTests
         var state = RecorderState.Ready;
         var saved = new RecordingResult(@"C:\Team meetings\June #1.wav", 1600, null, true);
         recorder.SetupGet(r => r.Snapshot).Returns(() => TestSnapshot(state, saved));
-        recorder.SetupGet(r => r.Elapsed).Returns(TimeSpan.Zero);
-        recorder.SetupGet(r => r.Levels).Returns(default(Levels));
+        recorder.SetupGet(r => r.Elapsed).Returns(() => state == RecorderState.Recording ? TimeSpan.FromSeconds(38) : TimeSpan.Zero);
+        recorder.SetupGet(r => r.Levels).Returns(() => state == RecorderState.Recording ? new Levels(0.14f, 0.25f) : default);
         var catalog = new Mock<IDeviceCatalog>(MockBehavior.Strict);
         var microphone = new Endpoint("mic", "Microphone (USB Conference System)", true);
         var output = new Endpoint("out", "Headphones – HP USB-C Dock Audio Headset", true);
@@ -305,6 +322,20 @@ public sealed class RecorderViewModelTests
             var close = FindButton("✕");
             var minimizeRight = minimize.TranslatePoint(new Point(minimize.ActualWidth, 0), window).X;
             close.TranslatePoint(new Point(0, 0), window).X.Should().BeGreaterThan(minimizeRight);
+            var modes = (ComboBox)window.FindName("ModeSelector");
+            modes.SelectedIndex = 1;
+            model.Mode.Should().Be(RecordingMode.Audio);
+            model.UsesMicrophone.Should().BeFalse();
+            model.Microphone = null;
+            model.CanStart.Should().BeTrue();
+            modes.SelectedIndex = 2;
+            model.CanStart.Should().BeFalse();
+            model.Microphone = microphone;
+            model.CanStart.Should().BeTrue();
+            model.UsesOutput.Should().BeFalse();
+            modes.SelectedIndex = 0;
+            model.Folder = @"C:\Recordings";
+            SaveScreenshot(window, "ready");
             var copy = FindButton("Copy link");
             copy.IsVisible.Should().BeFalse();
             state = RecorderState.Saved;
@@ -312,6 +343,7 @@ public sealed class RecorderViewModelTests
             window.UpdateLayout();
             logo.Source.Should().BeSameAs(idleLogo);
             copy.IsVisible.Should().BeTrue();
+            SaveScreenshot(window, "saved");
             var resultArea = Descendants(window).OfType<ScrollViewer>().Single();
             var copyBottom = copy.TranslatePoint(new Point(0, copy.ActualHeight), resultArea).Y;
             copyBottom.Should().BeLessThanOrEqualTo(resultArea.ViewportHeight);
@@ -339,6 +371,7 @@ public sealed class RecorderViewModelTests
                 .Returns(Task.CompletedTask);
             FindButton("Start recording").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             window.Title.Should().Contain("Recording");
+            SaveScreenshot(window, "recording");
             var recordingLogo = logo.Source;
             recordingLogo.Should().NotBeNull().And.NotBeSameAs(idleLogo);
             model.CopyLinkStatus.Should().BeEmpty();

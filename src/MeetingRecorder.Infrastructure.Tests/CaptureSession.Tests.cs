@@ -66,8 +66,8 @@ public sealed class CaptureSessionTests : IDisposable
             // Assert the playback marker follows the pause at frame 80000, not frame 128000.
             recorder.Snapshot.State.Should().Be(RecorderState.Saved);
             recorder.Elapsed.Value.Should().Be(TimeSpan.FromSeconds(10));
-            opened.Should().Equal(settings.MicrophoneId.Value, settings.OutputId.Value,
-                settings.MicrophoneId.Value, settings.OutputId.Value);
+            opened.Should().Equal(settings.MicrophoneId!.Value, settings.OutputId!.Value,
+                settings.MicrophoneId!.Value, settings.OutputId!.Value);
             var bytes = await File.ReadAllBytesAsync(recorder.Snapshot.Result!.Path!.Value, cancellationToken);
             bytes.Length.Should().Be(320044);
             bytes.Skip(44).Take(3000).Should().Contain(v => v != 0);
@@ -438,7 +438,7 @@ public sealed class CaptureSessionTests : IDisposable
             using var canceled = CancellationTokenSource.CreateLinkedTokenSource(token);
             await canceled.CancelAsync();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                new WaveRecordingStore().CreateAsync(folder, canceled.Token));
+                new WaveRecordingStore().CreateAsync(new("mic", "out", folder), canceled.Token));
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                 new FolderCatalog().ListAsync(folder, FolderLookup.NearestExisting, canceled.Token));
             Assert.Throws<ArgumentOutOfRangeException>(() => { _ = new FolderCatalog().ListAsync(folder, (FolderLookup)10, token); });
@@ -475,6 +475,40 @@ public sealed class CaptureSessionTests : IDisposable
         Assert.False(DeviceErrors.IsDeviceError(new ArithmeticException()));
         Assert.Throws<ArgumentException>(() => new InputFormat(16000, 2, 16, false, 0).Decode([1, 2]));
     }
+
+    /// <summary>Single-source capture opens only the selected endpoint on both intervals.</summary>
+    [Theory(DisplayName = "Single-source recording reopens only its own device and writes a mode-specific WAV")]
+    [Trait("Category", "Integration")]
+    [InlineData(RecordingMode.Audio, true)]
+    [InlineData(RecordingMode.Dictaphone, false)]
+    public Task SingleSourceShouldCaptureAndResume(RecordingMode mode, bool loopback) =>
+        TestDeadline.Run(async token =>
+        {
+            var settings = new RecordingSettings("mic", "out", _folder.FullName, mode);
+            var store = new WaveRecordingStore();
+            var file = await store.CreateAsync(settings, token);
+            var clock = new Mock<IRecordingClock>();
+            clock.SetupGet(c => c.Now).Returns(new CaptureTimestamp(0));
+            var opened = new List<bool>();
+            using var session = new CaptureSession(settings, clock.Object, file, (id, playback) =>
+            {
+                opened.Add(playback);
+                Assert.Equal(loopback ? "out" : "mic", id.Value);
+                return new TestEndpoint { NextPacket = MixingTests.Tone(playback, 0, 0, 0.1, 440) };
+            });
+            for (var interval = 0; interval < 2; interval++)
+            {
+                await session.BeginIntervalAsync(token);
+                await session.EndIntervalAsync(TimeSpan.TicksPerSecond / 10, token);
+            }
+
+            var result = await session.CompleteAsync(EmptyRecordingPolicy.Keep, token);
+            Assert.Equal(new[] { loopback, loopback }, opened);
+            Assert.StartsWith(mode + "-", Path.GetFileName(result.Path!.Value), StringComparison.Ordinal);
+            Assert.Equal(3200, result.Frames.Value);
+            var bytes = await File.ReadAllBytesAsync(result.Path.Value, token);
+            Assert.Contains(bytes.Skip(44), sample => sample != 0);
+        });
 
     /// <inheritdoc/>
     public void Dispose() => _folder.Delete(true);

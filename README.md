@@ -27,7 +27,8 @@ After building, you can launch `src\MeetingRecorder\bin\Release\net10.0-windows\
 
 ## Record a meeting
 
-1. Under **Microphone**, choose your input device. Under **Computer audio**, choose the headphones or speakers you use to hear the other participants. SoundSeal initially selects the Windows defaults and keeps your selected devices for the entire recording, including pauses.
+1. Choose **Meeting** for microphone and playback, **Computer audio** for playback only, or **Dictaphone** for microphone only. SoundSeal opens only the devices needed for that mode. Filenames begin with `Meeting-`, `Audio-` or `Dictaphone-`.
+   Under **Microphone**, choose your input device. Under **Computer audio**, choose the headphones or speakers you use to hear the other participants. SoundSeal initially selects the Windows defaults and keeps your selected devices for the entire recording, including pauses.
 2. Check **Recording folder**. The default is `%LOCALAPPDATA%\MeetingRecorder\Recordings`. Enter a path or click **Browse…** to choose a folder. SoundSeal creates the folder when recording starts if it doesn't already exist.
 3. Click **Start recording**. The seal's glasses glow while recording is active, and a red dot appears beside **Recording**. Speak into the microphone, then check the other meter when someone on the call speaks. Each meter shows **Signal detected** or **Silent**. **Elapsed time** keeps counting during silence.
 4. Click **Pause** to leave a break out of the file. Both meters show **Paused** and the timer stops. Click **Resume** to continue recording to the same file.

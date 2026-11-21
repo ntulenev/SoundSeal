@@ -129,6 +129,18 @@ public sealed class RecordingValuesTests
         Assert.Throws<ArgumentNullException>(() => new RecordingSettings("mic", "out", null!));
     }
 
+    /// <summary>Each capture mode accepts exactly its required selection.</summary>
+    [Fact(DisplayName = "Single-source settings accept a missing inactive device")]
+    public void RequiredSourcesFollowTheMode()
+    {
+        var folder = Path.GetTempPath();
+        Assert.Null(new RecordingSettings(null, "out", folder, RecordingMode.Audio).MicrophoneId);
+        Assert.Null(new RecordingSettings("mic", null, folder, RecordingMode.Dictaphone).OutputId);
+        Assert.Throws<ArgumentNullException>(() => new RecordingSettings(null, null, folder, RecordingMode.Audio));
+        Assert.Throws<ArgumentNullException>(() => new RecordingSettings(null, null, folder, RecordingMode.Dictaphone));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RecordingSettings("mic", "out", folder, (RecordingMode)10));
+    }
+
     /// <summary>Only terminal snapshots contain results and only a running interval has a start time.</summary>
     [Fact(DisplayName = "Only terminal snapshots contain results and only a running interval has a start time")]
     public void SnapshotRequiresConsistentStateAndOutcome()
