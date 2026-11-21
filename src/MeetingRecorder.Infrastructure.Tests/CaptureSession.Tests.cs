@@ -237,10 +237,10 @@ public sealed class CaptureSessionTests : IDisposable
     [InlineData(true, unchecked((int)0x88890008), "unsupported audio format")]
     public void DeviceErrorsShouldIdentifySourceAndCause(bool loopback, int code, string expected)
     {
-        var native = new IOException("Gerätefehler", code);
+        var native = new IOException("Native audio driver diagnostic", code);
         var translated = DeviceErrors.Translate(loopback, native);
         translated.Message.Should().Contain(expected);
-        translated.Message.Should().NotContain("Gerätefehler");
+        translated.Message.Should().NotContain(native.Message);
     }
 
     [Trait("Category", "Integration")]
