@@ -10,6 +10,11 @@ public sealed record RecordingSettings
     /// <param name="mode">Sources required for this recording.</param>
     public RecordingSettings(EndpointId? microphoneId, EndpointId? outputId, RecordingFolder folder,
         RecordingMode mode = RecordingMode.Meeting)
+        : this(microphoneId, outputId, folder, mode, RecordingLayout.SingleFile) { }
+
+    /// <summary>Pins the audio sources and file publication schedule for this session.</summary>
+    public RecordingSettings(EndpointId? microphoneId, EndpointId? outputId, RecordingFolder folder,
+        RecordingMode mode, RecordingLayout layout)
     {
         if (!Enum.IsDefined(mode))
         {
@@ -27,11 +32,20 @@ public sealed record RecordingSettings
         }
         ArgumentNullException.ThrowIfNull(folder);
 
+        if (!Enum.IsDefined(layout))
+        {
+            throw new ArgumentOutOfRangeException(nameof(layout));
+        }
+
+        Layout = layout;
         Mode = mode;
         MicrophoneId = mode == RecordingMode.Audio ? null : microphoneId;
         OutputId = mode == RecordingMode.Dictaphone ? null : outputId;
         Folder = folder;
     }
+
+    /// <summary>File publication schedule pinned across pauses.</summary>
+    public RecordingLayout Layout { get; }
 
     /// <summary>Capture mode pinned across pauses.</summary>
     public RecordingMode Mode { get; }

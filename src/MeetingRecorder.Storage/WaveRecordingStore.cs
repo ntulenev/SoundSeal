@@ -11,6 +11,9 @@ public sealed class WaveRecordingStore : IRecordingStore
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-        return Task.Run<IRecordingDestination>(() => WaveDestination.Create(settings.Folder, DateTime.Now, settings.Mode), cancellationToken);
+        return Task.Run<IRecordingDestination>(() => settings.Layout == RecordingLayout.QuarterHourParts
+            ? new SegmentedWaveDestination(settings.Folder, settings.Mode, DateTime.Now,
+                new FrameCount(15L * 60 * RecordingFormat.SampleRate))
+            : WaveDestination.Create(settings.Folder, DateTime.Now, settings.Mode), cancellationToken);
     }
 }

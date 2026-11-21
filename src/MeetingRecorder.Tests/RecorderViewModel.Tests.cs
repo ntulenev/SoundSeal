@@ -51,10 +51,15 @@ public sealed class RecorderViewModelTests
             await model.RefreshDevicesAsync(cancellationToken);
             model.Output.Should().Be(output);
             model.CanStart.Should().BeTrue();
-            recorder.Setup(r => r.StartAsync(new RecordingSettings("mic", "out", model.Folder), It.Is<CancellationToken>(t => t.CanBeCanceled)))
+            model.SplitRecording = true;
+            recorder.Setup(r => r.StartAsync(new RecordingSettings("mic", "out", model.Folder, RecordingMode.Meeting, RecordingLayout.QuarterHourParts), It.Is<CancellationToken>(t => t.CanBeCanceled)))
                 .Callback(() => snapshot = new(RecorderState.Recording, started: 0)).Returns(Task.CompletedTask);
 
             await model.StartAsync(cancellationToken);
+            model.Mode = RecordingMode.Audio;
+            model.SplitRecording = false;
+            Assert.Equal(RecordingMode.Meeting, model.Mode);
+            Assert.True(model.SplitRecording);
             model.Display.Title.Should().Contain("Recording");
             model.Display.StatusColor.Should().Be("#FF7975");
             model.CanEdit.Should().BeFalse();
@@ -255,9 +260,10 @@ public sealed class RecorderViewModelTests
         CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("de-DE");
         var recorder = new Mock<IRecorder>(MockBehavior.Strict);
         var state = RecorderState.Ready;
-        var saved = new RecordingResult(@"C:\Team meetings\June #1.wav", 1600, null, true);
+        var saved = new RecordingResult(@"C:\Team meetings #1\Meeting-2026-11-21_10-00-00.wav", 65 * 16000, null, true);
         recorder.SetupGet(r => r.Snapshot).Returns(() => TestSnapshot(state, saved));
-        recorder.SetupGet(r => r.Elapsed).Returns(() => state == RecorderState.Recording ? TimeSpan.FromSeconds(38) : TimeSpan.Zero);
+        recorder.SetupGet(r => r.Elapsed).Returns(() => state == RecorderState.Saved ? RecordingFormat.Duration(saved.Frames).Value :
+            state == RecorderState.Recording ? TimeSpan.FromSeconds(38) : TimeSpan.Zero);
         recorder.SetupGet(r => r.Levels).Returns(() => state == RecorderState.Recording ? new Levels(0.14f, 0.25f) : default);
         var catalog = new Mock<IDeviceCatalog>(MockBehavior.Strict);
         var microphone = new Endpoint("mic", "Microphone (USB Conference System)", true);
@@ -322,10 +328,12 @@ public sealed class RecorderViewModelTests
             var close = FindButton("✕");
             var minimizeRight = minimize.TranslatePoint(new Point(minimize.ActualWidth, 0), window).X;
             close.TranslatePoint(new Point(0, 0), window).X.Should().BeGreaterThan(minimizeRight);
+            model.Folder = @"C:\Recordings";
             var modes = (ComboBox)window.FindName("ModeSelector");
             modes.SelectedIndex = 1;
             model.Mode.Should().Be(RecordingMode.Audio);
             model.UsesMicrophone.Should().BeFalse();
+            SaveScreenshot(window, "computer-audio");
             model.Microphone = null;
             model.CanStart.Should().BeTrue();
             modes.SelectedIndex = 2;
@@ -333,8 +341,8 @@ public sealed class RecorderViewModelTests
             model.Microphone = microphone;
             model.CanStart.Should().BeTrue();
             model.UsesOutput.Should().BeFalse();
+            SaveScreenshot(window, "dictaphone");
             modes.SelectedIndex = 0;
-            model.Folder = @"C:\Recordings";
             SaveScreenshot(window, "ready");
             var copy = FindButton("Copy link");
             copy.IsVisible.Should().BeFalse();
@@ -344,11 +352,35 @@ public sealed class RecorderViewModelTests
             logo.Source.Should().BeSameAs(idleLogo);
             copy.IsVisible.Should().BeTrue();
             SaveScreenshot(window, "saved");
-            var resultArea = Descendants(window).OfType<ScrollViewer>().Single();
+            var resultArea = (ScrollViewer)window.FindName("SingleResult");
             var copyBottom = copy.TranslatePoint(new Point(0, copy.ActualHeight), resultArea).Y;
             copyBottom.Should().BeLessThanOrEqualTo(resultArea.ViewportHeight);
+            var single = saved;
+            var parts = Enumerable.Range(1, 20).Select(index => new RecordingResult(
+                FormattableString.Invariant($@"C:\Recordings\Meeting-2026-11-21_10-00-00-c81a07b77e-Part-{index:D4}.wav"),
+                15L * 60 * RecordingFormat.SampleRate, null, true)).ToArray();
+            saved = RecordingResult.CombineParts(parts, null);
+            model.SplitRecording = true;
+            timer.Pulse();
+            window.UpdateLayout();
+            var list = (ListBox)window.FindName("SavedParts");
+            Assert.True(list.IsVisible);
+            Assert.Equal(20, list.Items.Count);
+            SaveScreenshot(window, "parts");
+            list.ScrollIntoView(list.Items[^1]);
+            window.UpdateLayout();
+            var item = (ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(list.Items.Count - 1);
+            var lastCopy = FindVisualButton(item);
+            Assert.NotNull(lastCopy);
+            lastCopy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.EndsWith("Part-0020.wav", copied, StringComparison.Ordinal);
+            model.CopyRecordingLink(new RecordingFile(@"C:\Recordings\other.wav"));
+            Assert.EndsWith("Part-0020.wav", copied, StringComparison.Ordinal);
+            saved = single;
+            model.SplitRecording = false;
+            timer.Pulse();
             copy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            copied.Should().Be("file:///C:/Team%20meetings/June%20%231.wav");
+            copied.Should().Be("file:///C:/Team%20meetings%20%231/Meeting-2026-11-21_10-00-00.wav");
             model.CopyLinkStatus.Should().Be("Link copied.");
             var selector = Descendants(window).OfType<ComboBox>().Single(c => c.Items.Count == 2);
             selector.IsDropDownOpen = true;
@@ -408,6 +440,25 @@ public sealed class RecorderViewModelTests
                 window.Close();
             }
         }
+    }
+
+    private static Button? FindVisualButton(DependencyObject root)
+    {
+        for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, index);
+            if (child is Button button)
+            {
+                return button;
+            }
+
+            if (FindVisualButton(child) is { } descendant)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
     }
 
     private static IEnumerable<FrameworkElement> Descendants(DependencyObject parent)

@@ -23,6 +23,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     private RecorderDisplay _display;
     private bool _refreshing;
     private RecordingMode _mode;
+    private bool _splitRecording;
 
     /// <summary>Connects the recorder, device catalog, dispatcher timer, shell and clipboard to the window.</summary>
     public RecorderViewModel(IRecorder recorder, IDeviceCatalog devices, IUiTimer timer,
@@ -58,6 +59,18 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(UsesMicrophone));
                 OnPropertyChanged(nameof(UsesOutput));
                 Refresh();
+            }
+        }
+    }
+
+    /// <summary>Whether to publish each fifteen minutes of active audio as a separate WAV.</summary>
+    public bool SplitRecording {
+        get => _splitRecording;
+        set
+        {
+            if (CanEdit)
+            {
+                _ = SetProperty(ref _splitRecording, value);
             }
         }
     }
@@ -182,7 +195,8 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
 
         _notice = string.Empty;
         CopyLinkStatus = string.Empty;
-        return ShowTransitionAsync(_recorder.StartAsync(new(Microphone?.Id, Output?.Id, Folder, Mode), cancellationToken), cancellationToken);
+        return ShowTransitionAsync(_recorder.StartAsync(new(Microphone?.Id, Output?.Id, Folder, Mode,
+            SplitRecording ? RecordingLayout.QuarterHourParts : RecordingLayout.SingleFile), cancellationToken), cancellationToken);
     }
 
     /// <summary>Pauses or resumes the active session.</summary>
@@ -196,6 +210,18 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     internal void CopyRecordingLink()
     {
         if (Display is not { CanCopyLink: true, File: { } file })
+        {
+            return;
+        }
+
+        CopyRecordingLink(file);
+    }
+
+    /// <summary>Copies a specific published part selected in the result list.</summary>
+    internal void CopyRecordingLink(RecordingFile file)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        if (!Display.Files.Contains(file))
         {
             return;
         }
