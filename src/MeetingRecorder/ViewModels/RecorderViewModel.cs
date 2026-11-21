@@ -47,7 +47,6 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
 
             if (CanEdit && SetProperty(ref field, value))
             {
-                _notice = MissingDeviceNotice();
                 OnPropertyChanged(nameof(UsesMicrophone));
                 OnPropertyChanged(nameof(UsesOutput));
                 Refresh();
@@ -86,7 +85,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         {
             if (SetProperty(ref field, value))
             {
-                OnPropertyChanged(nameof(CanStart));
+                Refresh();
             }
         }
     }
@@ -98,7 +97,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         {
             if (SetProperty(ref field, value))
             {
-                OnPropertyChanged(nameof(CanStart));
+                Refresh();
             }
         }
     }
@@ -129,11 +128,13 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     /// <summary>Whether the recording settings can currently be changed.</summary>
     public bool CanEdit => _display.CanEdit && !IsRefreshing;
 
-    /// <summary>Whether both sources and an absolute recording folder are available.</summary>
+    /// <summary>Whether the selected mode has its required sources and a valid destination folder.</summary>
     public bool CanStart => CanEdit && (!UsesMicrophone || Microphone is not null) && (!UsesOutput || Output is not null)
         && RecordingFolder.TryParse(Folder, out _);
 
     private bool IsRefreshing { get; set; }
+
+    private bool HasDeviceList { get; set; }
 
     /// <inheritdoc/>
     public void Dispose()
@@ -166,7 +167,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         {
             var devices = await _devices.ReadAsync(cancellationToken);
             ApplyDevices(devices, mic, output);
-            _notice = MissingDeviceNotice();
+            HasDeviceList = true;
         }
         catch (RecordingException ex)
         {
@@ -288,8 +289,13 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         }
     }
 
-    private RecorderDisplay ReadDisplay() => RecorderDisplay.From(_recorder.Snapshot,
-        _recorder.Elapsed, _recorder.Levels, _notice);
+    private RecorderDisplay ReadDisplay()
+    {
+        var snapshot = _recorder.Snapshot;
+        var notice = HasDeviceList && _notice.Length == 0 && snapshot.State is RecorderState.Ready or RecorderState.Saved
+            ? MissingDeviceNotice() : _notice;
+        return RecorderDisplay.From(snapshot, _recorder.Elapsed, _recorder.Levels, notice);
+    }
 
     private void OnTick(object? sender, EventArgs e)
     {
