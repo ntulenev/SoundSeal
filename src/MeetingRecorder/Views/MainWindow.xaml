@@ -21,8 +21,9 @@
                         <Button Content="✕" Click="OnClose" ToolTip="Close" AutomationProperties.Name="Close" BorderThickness="0"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Image Source="/SoundSeal;component/Assets/SoundSeal.png" Width="42" Height="42"
-                               RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="SoundSeal seal with headphones"/>
+                        <Image Source="/SoundSeal;component/Assets/SoundSeal.png" Width="40" Height="40"
+                               SnapsToDevicePixels="True" UseLayoutRounding="True"
+                               RenderOptions.BitmapScalingMode="NearestNeighbor" AutomationProperties.Name="SoundSeal seal with headphones"/>
                         <TextBlock Margin="9,0" VerticalAlignment="Center" Text="SoundSeal" FontSize="22" FontWeight="Bold"/>
                     </StackPanel>
                 </DockPanel>
