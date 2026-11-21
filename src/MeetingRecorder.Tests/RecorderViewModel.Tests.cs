@@ -321,6 +321,13 @@ public sealed class RecorderViewModelTests
 
             model.Microphone.Should().Be(microphone);
             model.Output.Should().Be(output);
+            var title = Descendants(window).OfType<TextBlock>().Single(text => text.Text == "SoundSeal");
+            var version = (TextBlock)window.FindName("VersionLabel");
+            var build = typeof(MainWindow).Assembly.GetName().Version!;
+            version.Text.Should().MatchRegex($@"^Version {build.Major}\.{build.Minor}\.{build.Build}(?:-[0-9A-Za-z.-]+)?$");
+            version.IsVisible.Should().BeTrue();
+            version.TranslatePoint(new Point(), window).Y.Should().BeGreaterThanOrEqualTo(
+                title.TranslatePoint(new Point(0, title.ActualHeight), window).Y);
             window.Icon.Should().NotBeNull();
             var logo = Descendants(window).OfType<Image>().Single();
             var idleLogo = logo.Source;
