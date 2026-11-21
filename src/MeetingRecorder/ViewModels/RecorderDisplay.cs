@@ -47,7 +47,7 @@ internal sealed record RecorderDisplay(RecorderState State, string Elapsed, Leve
         RecorderState.Recording or RecorderState.Error => "#FF7975",
         RecorderState.Paused or RecorderState.Pausing => "#F5C768",
         RecorderState.Ready or RecorderState.Starting or RecorderState.Resuming
-            or RecorderState.Saving or RecorderState.Saved => "#74DCC4",
+            or RecorderState.Saving or RecorderState.Saved => "#63D9EF",
         _ => "#CBD4D0"
     };
 
