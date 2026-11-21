@@ -1,6 +1,14 @@
 # SoundSeal
 
+<img src="src/MeetingRecorder/Assets/SoundSeal.png" width="120" height="120" alt="Тюлень SoundSeal в тёмных очках и бирюзовых наушниках">
+
 SoundSeal записывает голос с микрофона и звук онлайн-встречи в один локальный WAV-файл. Приложение работает в Windows 11 x64 без интернета. Запись начинается по нажатию **Start recording**. Готовый файл можно самостоятельно передать в сервис расшифровки.
+
+## Скриншоты
+
+| Выбор источников звука | Запись встречи |
+| --- | --- |
+| [![Окно SoundSeal перед записью с выбором микрофона, устройства вывода и папки](docs/screenshots/ready.png)](docs/screenshots/ready.png) | [![Окно SoundSeal во время записи с таймером и индикаторами сигнала обоих источников](docs/screenshots/recording.png)](docs/screenshots/recording.png) |
 
 ## Сборка и запуск
 
