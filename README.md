@@ -82,7 +82,7 @@ Click **Open folder** and select the WAV in your transcription tool. For a split
 | --- | --- |
 | **Microphone** stays **Silent** while you speak | Check the selected input, the microphone's hardware mute switch, and the Windows input level. In Windows microphone privacy settings, allow desktop apps to access the microphone. |
 | **Computer audio** stays **Silent** while someone else speaks | Check that the calling app uses the playback device selected in SoundSeal. WASAPI loopback captures the shared mix on that device, including browser audio and notifications. Protected content and apps using exclusive mode may be unavailable for capture. |
-| Recording stops immediately with a device discontinuity when a Bluetooth call starts | Use SoundSeal 3.1.5 or later. Some headsets, including the Sony WH-1000XM5, deliver 48 kHz playback samples while the device position advances at 16 kHz during a call. SoundSeal uses packet timestamps and the number of delivered samples to keep both tracks in sync. |
+| Recording stops immediately with a device discontinuity when a Bluetooth call starts | Use SoundSeal 3.1.7 or later. During a call, a Sony WH-1000XM5 can flag a microphone packet after a brief gap. SoundSeal resumes at the next reliable timestamp and leaves silence in the missing portion of that source. It also handles the headset’s 48 kHz playback samples and 16 kHz device counter. |
 | A device is missing or busy | Connect the device or close the app using it in exclusive mode, then click **Refresh devices**. |
 | You hear the other participant twice in the recording | Sound from the speakers can reach the microphone. A headset reduces this echo. |
 | **Error** appears after a device disconnects or the recorder is overloaded | Read the message below **Recording folder**. If SoundSeal saved part of the recording, the message shows the WAV file path. Check the devices before clicking **Start recording** again. |
@@ -90,7 +90,7 @@ Click **Open folder** and select the WAV in your transcription tool. For a split
 
 ## Testing
 
-During a **Google Meet** call on Windows, we collected packet timing for both the microphone and playback on a **Sony WH-1000XM5** Bluetooth headset. SoundSeal 3.1.5 processed all 2,799 packet headers from two runs. A separate test used synthetic audio to verify that the saved meeting WAV contained both the microphone and computer audio.
+We tested **Google Meet** on Windows with a **Sony WH-1000XM5** Bluetooth headset. The microphone sometimes flagged consecutive packets as discontinuous even when their positions and timestamps kept advancing. With those flags, version 3.1.5 stopped in four ordinary starts. Version 3.1.7 saved both ordinary test recordings and five more with a deliberate 135 ms delay in the capture thread. We used the headset’s actual packet timing and substituted two synthetic tones for the call audio to verify the saved WAV files.
 
 Unit tests exercise individual components. Integration tests exercise capture queues, the file system, dependency injection, and the WPF window. To run either category from the repository root, use the corresponding command.
 
@@ -110,6 +110,7 @@ The same Release coverage script was run on each revision. Percentages combine l
 | v3.1.0 | 154 | 1393 / 1546 (90.1%) | 721 / 776 (92.9%) |
 | v3.1.3 | 154 | 1395 / 1548 (90.1%) | 731 / 786 (93.0%) |
 | v3.1.5 | 159 | 1401 / 1554 (90.2%) | 733 / 788 (93.0%) |
+| v3.1.7 | 166 | 1404 / 1557 (90.2%) | 739 / 794 (93.1%) |
 
 The v2.0.0 domain suite and integration tests together exercise all 227 executable domain lines and all 96 domain branches. The full suite covers invalid value construction, immutable device and folder listings, cancellation before and during device startup, retry after cleanup, and publication after late cancellation.
 

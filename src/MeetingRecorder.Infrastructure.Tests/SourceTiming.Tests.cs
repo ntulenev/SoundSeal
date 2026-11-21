@@ -13,17 +13,63 @@ public sealed class SourceTimingTests
 
     /// <summary>Unrecoverable device-position and QPC discontinuities interrupt capture.</summary>
     [Theory(DisplayName = "Unrecoverable device-position and QPC discontinuities interrupt capture")]
-    [InlineData(159, 100000L, false)]
-    [InlineData(170, 100000L, false)]
-    [InlineData(160, 100000L, true)]
-    [InlineData(160, -400000L, false)]
+    [InlineData(999, 100000L, false)]
+    [InlineData(1160, 0L, true)]
+    [InlineData(1160, -400000L, false)]
     public void BrokenContinuityShouldInterrupt(long position, long qpc, bool discontinuity)
     {
         var track = new SourceTrack(0);
-        track.Add(new(false, FORMAT, 0, 0, 160, []), 0);
+        track.Add(new(false, FORMAT, 1000, 0, 160, []), 0);
         var next = () => track.Add(new(false, FORMAT, position, qpc, 160, [],
             discontinuity), 0);
-        next.Should().Throw<RecordingException>().WithMessage("*discontinuity*");
+        next.Should().Throw<RecordingException>().WithMessage("Microphone*discontinuity*");
+    }
+
+    /// <summary>A usable hardware timestamp recovers microphone gaps and flagged counter resets.</summary>
+    [Theory(DisplayName = "The microphone resumes at the timestamp of the first packet after a gap")]
+    [InlineData(1960, true)]
+    [InlineData(1960, false)]
+    [InlineData(0, true)]
+    [InlineData(1320, true)]
+    [InlineData(1320, false)]
+    public void MicrophoneShouldResumeOnTheSharedTimeline(long position, bool flagged)
+    {
+        var track = new SourceTrack(0);
+        var voice = Enumerable.Repeat((byte)64, 640).ToArray();
+        track.Add(new(false, FORMAT, 1000, 0, 320, voice), 0);
+        track.Add(new(false, FORMAT, position, 600000, 160, voice, flagged), 0);
+        var samples = new float[1120];
+        track.Read(0, samples);
+        Assert.Contains(samples[..320], value => value > 0.05f);
+        Assert.All(samples[320..960], value => Assert.Equal(0f, value));
+        Assert.Contains(samples[960..], value => value > 0.05f);
+    }
+
+    /// <summary>Replays the first five microphone packet headers observed when the headset flagged two consecutive packets.</summary>
+    [Fact(DisplayName = "Consecutive startup flags on a Sony WH-1000XM5 do not end the microphone track")]
+    public void ConsecutiveHeadsetStartupFlagsShouldKeepRecording()
+    {
+        var track = new SourceTrack(0);
+        var voice = Enumerable.Repeat((byte)64, 320).ToArray();
+        long[] timestamps = [0, 101749, 180565, 340342, 421116];
+        for (var i = 0; i < timestamps.Length; i++)
+        {
+            track.Add(new(false, FORMAT, i * 160, timestamps[i], 160, voice, i < 2), 0);
+        }
+
+        var tail = new float[100];
+        track.Read(670, tail);
+        Assert.All(tail, value => Assert.True(value > 0.05f));
+    }
+
+    /// <summary>A missing timestamp cannot locate a microphone packet after a reported gap.</summary>
+    [Fact(DisplayName = "A microphone gap without a usable timestamp identifies the failing input")]
+    public void MicrophoneGapWithoutTimestampShouldInterrupt()
+    {
+        var track = new SourceTrack(0);
+        track.Add(new(false, FORMAT, 0, 0, 160, []), 0);
+        var add = () => track.Add(new(false, FORMAT, 320, null, 160, [], true), 0);
+        add.Should().Throw<RecordingException>().WithMessage("Microphone*reliable audio timestamps*");
     }
 
     /// <summary>Samples arriving after their output frames were written cannot replace silence.</summary>

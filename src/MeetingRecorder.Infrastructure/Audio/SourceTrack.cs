@@ -10,6 +10,7 @@ internal sealed class SourceTrack
     private readonly long _origin;
     private long _expectedPosition;
     private long _lastPosition;
+    private long _lastValidTimestamp;
     private bool _positionCountsMixFrames;
     private long _framesSinceAnchor;
     private double _anchorTime;
@@ -48,19 +49,26 @@ internal sealed class SourceTrack
         if (packet.Qpc is null && (initial || _invalid || positionGap || packet.Discontinuity ||
             (packet.Loopback && packet.Position <= _lastPosition)))
         {
-            throw new RecordingException("The device stopped providing reliable audio timestamps.");
+            throw new RecordingException($"{packet.SourceName} stopped providing reliable audio timestamps.");
         }
 
         _invalid = packet.Qpc is null;
         var time = packet.Qpc ?? _nextTime;
         var offset = time - _nextTime;
         var restart = initial || positionGap || packet.Discontinuity || Math.Abs(offset) > MAX_TIMESTAMP_JUMP;
-        if (!initial && (packet.Position < _lastPosition || offset < -MAX_TIMESTAMP_JUMP ||
-            (!packet.Loopback && restart)))
+        // The device may lose frames or reset its counter after a scheduling gap.
+        // A fresh QPC timestamp still locates the next packet on the meeting timeline.
+        if (!initial && restart && time <= _lastValidTimestamp)
         {
-            throw new RecordingException("Audio input was interrupted by a device discontinuity.");
+            throw new RecordingException($"{packet.SourceName} reported a discontinuity without an advancing timestamp.");
         }
 
+        if (!initial && packet.Position < _lastPosition && !packet.Discontinuity)
+        {
+            throw new RecordingException($"{packet.SourceName} reported a discontinuity with a backward device position.");
+        }
+
+        _lastValidTimestamp = packet.Qpc ?? _lastValidTimestamp;
         if (restart)
         {
             _framesSinceAnchor = 0;
@@ -80,7 +88,7 @@ internal sealed class SourceTrack
                     / (time - _anchorTime);
                 if (Math.Abs((measured / nominal) - 1) > 0.02)
                 {
-                    throw new RecordingException("The audio device clock could not be synchronized.");
+                    throw new RecordingException($"{packet.SourceName} could not be synchronized to the recording clock.");
                 }
 
                 _rate += (measured - _rate) * 0.2;
@@ -108,7 +116,7 @@ internal sealed class SourceTrack
         _nextOutput = end;
         if (start < written)
         {
-            throw new RecordingException("Audio packets arrived too late to synchronize the recording.");
+            throw new RecordingException($"{packet.SourceName} packets arrived too late to synchronize the recording.");
         }
 
         if (packet.Data.Length == 0 && Math.Abs(_previous) < 1e-15
