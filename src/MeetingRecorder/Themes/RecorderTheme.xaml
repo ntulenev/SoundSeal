@@ -42,6 +42,9 @@
         <Setter Property="Background" Value="{StaticResource Panel}"/><Setter Property="CornerRadius" Value="8"/>
         <Setter Property="BorderBrush" Value="{StaticResource Rule}"/><Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="16,9"/>
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.55"/></Trigger>
+        </Style.Triggers>
     </Style>
     <Style TargetType="TextBox"><Setter Property="Padding" Value="7,4"/><Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Background" Value="{StaticResource Field}"/><Setter Property="Foreground" Value="{StaticResource Bright}"/>

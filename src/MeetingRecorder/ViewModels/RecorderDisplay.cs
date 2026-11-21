@@ -6,8 +6,14 @@ namespace MeetingRecorder.ViewModels;
 
 /// <summary>English feedback and action availability derived from one recorder snapshot.</summary>
 internal sealed record RecorderDisplay(RecorderState State, string Elapsed, Levels Peaks,
-    RecordingFile? File, string Detail, bool CanCopyLink)
+    RecordingFile? File, string Detail, bool CanCopyLink, IReadOnlyList<RecordingFile> Files)
 {
+    /// <summary>Whether a chronological list is needed for the published files.</summary>
+    public bool ShowParts => Files.Count > 1 || (Files.Count > 0 && !CanCopyLink);
+
+    /// <summary>Whether to show a single file or recovery path.</summary>
+    public bool ShowSingleFile => File is not null && !ShowParts;
+
     /// <summary>Whether the user can change recording settings.</summary>
     public bool CanEdit => State is RecorderState.Ready or RecorderState.Saved or RecorderState.Error;
 
@@ -71,14 +77,14 @@ internal sealed record RecorderDisplay(RecorderState State, string Elapsed, Leve
         {
             var outcome = result.Path is null ? "No recording file was saved."
                 : result.Published ? "Recording interrupted. Available audio saved."
-                : "Unfinished file retained.";
+                : "Unfinished file retained. " + result.Path.Value;
             detail = result.Problem + " " + outcome;
         }
 
         return new(snapshot.State, string.Create(CultureInfo.InvariantCulture,
             $"{(int)elapsed.Value.TotalHours:00}:{elapsed.Value.Minutes:00}:{elapsed.Value.Seconds:00}"),
             snapshot.State == RecorderState.Recording ? peaks : default, result?.Path, detail,
-            result is { Published: true, Path: not null });
+            result is { Published: true, Path: not null }, result?.PublishedFiles ?? []);
     }
 
     private double Meter(float peak) => State == RecorderState.Recording && peak > 0

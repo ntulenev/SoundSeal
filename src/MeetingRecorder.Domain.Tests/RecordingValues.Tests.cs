@@ -134,11 +134,36 @@ public sealed class RecordingValuesTests
     public void RequiredSourcesFollowTheMode()
     {
         var folder = Path.GetTempPath();
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RecordingSettings("mic", "out", folder, RecordingMode.Meeting, (RecordingLayout)11));
         Assert.Null(new RecordingSettings(null, "out", folder, RecordingMode.Audio).MicrophoneId);
         Assert.Null(new RecordingSettings("mic", null, folder, RecordingMode.Dictaphone).OutputId);
         Assert.Throws<ArgumentNullException>(() => new RecordingSettings(null, null, folder, RecordingMode.Audio));
         Assert.Throws<ArgumentNullException>(() => new RecordingSettings(null, null, folder, RecordingMode.Dictaphone));
         Assert.Throws<ArgumentOutOfRangeException>(() => new RecordingSettings("mic", "out", folder, (RecordingMode)10));
+    }
+
+    /// <summary>Session results retain value equality for both single and multiple published files.</summary>
+    [Fact(DisplayName = "Recording result equality includes the complete ordered file list")]
+    public void EquivalentPartListsHaveEqualResults()
+    {
+        static RecordingResult Part(string name)
+        {
+            return new(Path.Combine(Path.GetTempPath(), name), 1, null, true);
+        }
+
+        var result = RecordingResult.CombineParts([Part("first.wav"), Part("last.wav")], null);
+        var same = RecordingResult.CombineParts([Part("first.wav"), Part("last.wav")], null);
+        Assert.Equal(result, same);
+        Assert.Equal(result.GetHashCode(), same.GetHashCode());
+        Assert.NotEqual(result, RecordingResult.CombineParts([Part("other.wav"), Part("last.wav")], null));
+        Assert.NotEqual(result, Part("other.wav"));
+        Assert.NotEqual(result, Part("last.wav"));
+        Assert.NotEqual(result, result.WithCaptureProblem(new RecordingProblem("interrupted")));
+        Assert.False(result.Equals(null));
+        Assert.NotEqual(Part("last.wav").WithCaptureProblem(new RecordingProblem("failure")),
+            new RecordingResult(Part("last.wav").Path, 1, "failure", false));
+        Assert.Throws<ArgumentNullException>(() => RecordingResult.CombineParts(null!, null));
+        Assert.Throws<ArgumentNullException>(() => RecordingResult.CombineParts([null!], null));
     }
 
     /// <summary>Only terminal snapshots contain results and only a running interval has a start time.</summary>

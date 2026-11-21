@@ -63,11 +63,16 @@ internal sealed class WaveDestination : IRecordingDestination
     internal static WaveDestination Create(RecordingFolder folder, DateTime localTime, RecordingMode mode = RecordingMode.Meeting)
     {
         ArgumentNullException.ThrowIfNull(folder);
+        var name = mode + "-" + localTime.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
+        return Reserve(folder, name);
+    }
+
+    /// <summary>Reserves a unique sibling for a storage-generated filename stem.</summary>
+    internal static WaveDestination Reserve(RecordingFolder folder, string name)
+    {
         try
         {
             _ = Directory.CreateDirectory(folder.Value);
-            var name = mode + "-" + localTime.ToString("yyyy-MM-dd_HH-mm-ss",
-                CultureInfo.InvariantCulture);
             for (var suffix = 0; ; suffix++)
             {
                 var stem = suffix == 0 ? name : FormattableString.Invariant($"{name}-{suffix}");
@@ -147,7 +152,14 @@ internal sealed class WaveDestination : IRecordingDestination
             _stream.SetLength(44 + (Frames.Value * 2));
             _stream.Position = 0;
             WriteHeader();
-            _stream.Flush();
+            if (_stream is FileStream file)
+            {
+                file.Flush(flushToDisk: true);
+            }
+            else
+            {
+                _stream.Flush();
+            }
             _stream.Dispose();
             File.Move(_temporary.Value, _final.Value);
             return new(_final, Frames, problem, true);

@@ -510,6 +510,35 @@ public sealed class CaptureSessionTests : IDisposable
             Assert.Contains(bytes.Skip(44), sample => sample != 0);
         });
 
+    /// <summary>Rollover leaves endpoints running and carries the active frame count across a pause.</summary>
+    [Fact(DisplayName = "Capture continues across segment boundaries and omits paused clock time")]
+    [Trait("Category", "Integration")]
+    public Task RolloverShouldPreserveSessionAcrossPause() => TestDeadline.Run(async token =>
+    {
+        var now = 0L;
+        var clock = new Mock<IRecordingClock>();
+        clock.SetupGet(c => c.Now).Returns(() => Interlocked.Read(ref now));
+        var opens = 0;
+        var mode = RecordingMode.Dictaphone;
+        var settings = new RecordingSettings("mic", null, _folder.FullName, mode, RecordingLayout.QuarterHourParts);
+        using var file = new SegmentedWaveDestination(settings.Folder, mode, DateTime.Now, 8);
+        using var session = new CaptureSession(settings, clock.Object, file, (_, _) =>
+        {
+            Interlocked.Increment(ref opens);
+            return new TestEndpoint();
+        });
+        await session.BeginIntervalAsync(token);
+        await session.EndIntervalAsync(12 * RecordingFormat.TicksPerFrame, token);
+        Assert.Single(_folder.GetFiles("*.wav"));
+        Interlocked.Exchange(ref now, TimeSpan.TicksPerHour);
+        await session.BeginIntervalAsync(token);
+        await session.EndIntervalAsync(now + (8 * RecordingFormat.TicksPerFrame), token);
+        var result = await session.CompleteAsync(EmptyRecordingPolicy.Keep, token);
+        Assert.Equal(2, opens);
+        Assert.Equal(20, result.Frames.Value);
+        Assert.Equal(3, result.PublishedFiles.Count);
+    });
+
     /// <inheritdoc/>
     public void Dispose() => _folder.Delete(true);
 

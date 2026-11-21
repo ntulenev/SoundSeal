@@ -66,7 +66,17 @@ public partial class MainWindow : Window
 
     private void OnOpen(object sender, RoutedEventArgs e) => _model.OpenFolder();
 
-    private void OnCopyLink(object sender, RoutedEventArgs e) => _model.CopyRecordingLink();
+    private void OnCopyLink(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: RecordingFile part })
+        {
+            _model.CopyRecordingLink(part);
+        }
+        else
+        {
+            _model.CopyRecordingLink();
+        }
+    }
 
     private void OnMinimize(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 

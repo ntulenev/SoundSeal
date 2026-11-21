@@ -18,6 +18,9 @@ public sealed record RecordingFile
     /// <summary>The fully qualified path of a published or recoverable recording.</summary>
     public string Value { get; }
 
+    /// <summary>Filename shown in the list of saved recording parts.</summary>
+    public string Name => Path.GetFileName(Value);
+
     /// <summary>Converts an optional value and preserves absence.</summary>
     [return: System.Diagnostics.CodeAnalysis.NotNullIfNotNull(nameof(value))]
     public static RecordingFile? FromString(string? value) => value is null ? null : new(value);
