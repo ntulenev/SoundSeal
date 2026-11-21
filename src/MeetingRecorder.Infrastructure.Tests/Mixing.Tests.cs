@@ -83,6 +83,30 @@ public sealed class MixingTests : IDisposable
         }
     }
 
+    /// <summary>Microphone packet loss leaves the other participant audible across the gap.</summary>
+    [Fact(DisplayName = "A meeting WAV preserves computer audio during a microphone dropout")]
+    [Trait("Category", "Integration")]
+    public void MicrophoneDropoutShouldPreserveTheMeeting()
+    {
+        using var file = WaveDestination.Create(Folder.FullName, DateTime.Now);
+        var mixer = new IntervalMixer(0, file, _ => { });
+        mixer.Add(Tone(true, 0, 0, 0.3, 800));
+        mixer.Add(Tone(false, 0, 0, 0.1, 400));
+        mixer.Drain(SECOND / 10);
+        mixer.Add(Tone(false, 8820, SECOND / 5, 0.1, 400) with { Discontinuity = true });
+        mixer.Drain(3 * SECOND / 10);
+
+        var samples = Read(file.Complete(EmptyRecordingPolicy.Keep, null));
+        Assert.Equal(4800, samples.Length);
+        foreach (var start in new[] { 160, 1760, 3360 })
+        {
+            Assert.True(Energy(samples, start, 1200, 800) > 0.1);
+        }
+        Assert.True(Energy(samples, 160, 1200, 400) > 0.1);
+        Assert.True(Energy(samples, 1760, 1200, 400) < 0.002);
+        Assert.True(Energy(samples, 3360, 1200, 400) > 0.1);
+    }
+
     /// <summary>Twenty seconds without loopback preserve speech order and silence.</summary>
     [Trait("Category", "Unit")]
     [Fact(DisplayName = "Twenty seconds without loopback preserve speech order and silence")]
