@@ -22,7 +22,7 @@ using Moq;
 namespace MeetingRecorder.Tests;
 
 /// <summary>Tests the recorder window and presentation state.</summary>
-public sealed class RecorderViewModelTests
+public sealed partial class RecorderViewModelTests
 {
     /// <summary>Endpoint selection, actions and timer follow one recording state.</summary>
     [Trait("Category", "Unit")]
@@ -142,27 +142,7 @@ public sealed class RecorderViewModelTests
     [Trait("Category", "Integration")]
     [Fact(DisplayName = "The WPF window, folder chooser and close prompt have English controls at minimum size")]
     public Task WindowShouldPresentEnglishInteractions() =>
-        TestDeadline.Run(async cancellationToken =>
-        {
-            var ready = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var thread = new Thread(() =>
-            {
-                var dispatcher = Dispatcher.CurrentDispatcher;
-                using var stop = cancellationToken.Register(() => dispatcher.BeginInvokeShutdown(DispatcherPriority.Send));
-                var check = dispatcher.InvokeAsync(() => CheckWindowAsync(cancellationToken),
-                    DispatcherPriority.Normal, cancellationToken).Task.Unwrap();
-                ready.SetResult(check);
-                _ = check.ContinueWith(_ => dispatcher.BeginInvokeShutdown(DispatcherPriority.Send),
-                    cancellationToken, TaskContinuationOptions.None, TaskScheduler.Default);
-                Dispatcher.Run();
-            })
-            {
-                IsBackground = true
-            };
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-            await ready.Task.Unwrap().WaitAsync(TimeSpan.FromSeconds(20), cancellationToken);
-        });
+        TestDeadline.Run(token => OnDispatcherAsync(CheckWindowAsync, token));
 
     /// <summary>A missing source is identified and prevents recording.</summary>
     [Trait("Category", "Unit")]
@@ -239,6 +219,28 @@ public sealed class RecorderViewModelTests
         model.OpenFolder();
         model.Display.Detail.Should().Contain("no longer available");
         (model.Display.File?.Value).Should().Be(FILE);
+    }
+
+    private static async Task OnDispatcherAsync(Func<CancellationToken, Task> checkWindow, CancellationToken cancellationToken)
+    {
+        var finished = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            using var stop = cancellationToken.Register(() => dispatcher.BeginInvokeShutdown(DispatcherPriority.Send));
+            var check = dispatcher.InvokeAsync(() => checkWindow(cancellationToken),
+                DispatcherPriority.Normal, cancellationToken).Task.Unwrap();
+            _ = check.ContinueWith(_ => dispatcher.BeginInvokeShutdown(DispatcherPriority.Send),
+                cancellationToken, TaskContinuationOptions.None, TaskScheduler.Default);
+            Dispatcher.Run();
+            finished.SetResult(check);
+        })
+        {
+            IsBackground = true
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        await finished.Task.Unwrap().WaitAsync(TimeSpan.FromSeconds(20), cancellationToken);
     }
 
     private static void SaveScreenshot(Window window, string name)
