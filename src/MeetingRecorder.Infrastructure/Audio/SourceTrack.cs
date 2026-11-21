@@ -142,6 +142,9 @@ internal sealed class SourceTrack
         }
     }
 
+    /// <summary>Whether a buffered segment starts before the exclusive output-frame boundary.</summary>
+    internal bool HasSamplesBefore(long end) => _segments.TryPeek(out var segment) && segment.Start < end;
+
     /// <summary>Fills the requested output slice with aligned samples and silence where needed.</summary>
     internal void Read(long start, Span<float> target)
     {
