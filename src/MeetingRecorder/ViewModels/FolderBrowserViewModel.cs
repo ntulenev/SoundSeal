@@ -14,7 +14,6 @@ internal sealed class FolderBrowserViewModel : ObservableObject
     private string _pathText = string.Empty;
     private string _notice = string.Empty;
     private IReadOnlyList<string> _entries = [];
-    private string? _selectedName;
 
     /// <summary>Uses the supplied catalog to browse folders and drives.</summary>
     public FolderBrowserViewModel(IFolderCatalog catalog)
@@ -44,8 +43,8 @@ internal sealed class FolderBrowserViewModel : ObservableObject
 
     /// <summary>Entry selected in the current listing.</summary>
     public string? SelectedName {
-        get => _selectedName;
-        set => SetProperty(ref _selectedName, value);
+        get;
+        set => SetProperty(ref field, value);
     }
 
     /// <summary>Opens the chooser at the closest existing ancestor of the requested path.</summary>

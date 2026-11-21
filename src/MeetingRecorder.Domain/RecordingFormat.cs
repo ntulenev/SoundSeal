@@ -12,8 +12,5 @@ public static class RecordingFormat
     /// <summary>Converts complete mono frames to their exact playing time.</summary>
     /// <param name="frames">Number of complete 16 kHz PCM frames in the data chunk.</param>
     /// <returns>The playing time encoded by the file header.</returns>
-    public static RecordingDuration Duration(FrameCount frames)
-    {
-        return TimeSpan.FromTicks(checked(frames.Value * TicksPerFrame));
-    }
+    public static RecordingDuration Duration(FrameCount frames) => TimeSpan.FromTicks(checked(frames.Value * TicksPerFrame));
 }
