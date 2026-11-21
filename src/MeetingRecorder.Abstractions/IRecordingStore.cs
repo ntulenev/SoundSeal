@@ -6,5 +6,5 @@ namespace MeetingRecorder.Abstractions;
 public interface IRecordingStore
 {
     /// <summary>Creates a temporary WAV under the selected absolute folder.</summary>
-    Task<IRecordingDestination> CreateAsync(RecordingFolder folder, CancellationToken cancellationToken);
+    Task<IRecordingDestination> CreateAsync(RecordingSettings settings, CancellationToken cancellationToken);
 }

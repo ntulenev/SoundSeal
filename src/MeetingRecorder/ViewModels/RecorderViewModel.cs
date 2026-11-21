@@ -22,6 +22,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     private string _copyLinkStatus = string.Empty;
     private RecorderDisplay _display;
     private bool _refreshing;
+    private RecordingMode _mode;
 
     /// <summary>Connects the recorder, device catalog, dispatcher timer, shell and clipboard to the window.</summary>
     public RecorderViewModel(IRecorder recorder, IDeviceCatalog devices, IUiTimer timer,
@@ -40,6 +41,32 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         _display = ReadDisplay();
         _timer.Tick += OnTick;
     }
+
+    /// <summary>Recording mode selected before starting a session.</summary>
+    public RecordingMode Mode {
+        get => _mode;
+        set
+        {
+            if (!Enum.IsDefined(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            if (CanEdit && SetProperty(ref _mode, value))
+            {
+                _notice = MissingDeviceNotice();
+                OnPropertyChanged(nameof(UsesMicrophone));
+                OnPropertyChanged(nameof(UsesOutput));
+                Refresh();
+            }
+        }
+    }
+
+    /// <summary>Whether this mode includes the microphone.</summary>
+    public bool UsesMicrophone => Mode != RecordingMode.Audio;
+
+    /// <summary>Whether this mode includes playback.</summary>
+    public bool UsesOutput => Mode != RecordingMode.Dictaphone;
 
     /// <summary>Microphone endpoints available for selection.</summary>
     public IReadOnlyList<Endpoint> Microphones { get; private set; } = [];
@@ -97,7 +124,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     public bool CanEdit => _display.CanEdit && !_refreshing;
 
     /// <summary>Whether both sources and an absolute recording folder are available.</summary>
-    public bool CanStart => CanEdit && Microphone is not null && Output is not null
+    public bool CanStart => CanEdit && (!UsesMicrophone || Microphone is not null) && (!UsesOutput || Output is not null)
         && RecordingFolder.TryParse(Folder, out _);
 
     /// <inheritdoc/>
@@ -131,14 +158,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         {
             var devices = await _devices.ReadAsync(cancellationToken);
             ApplyDevices(devices, mic, output);
-            _notice = (Microphone, Output) switch
-            {
-                (null, null) => "Microphone and computer audio are unavailable. " +
-                    "Connect devices and choose Refresh devices.",
-                (null, _) => "Microphone unavailable. Connect an input and choose Refresh devices.",
-                (_, null) => "Computer audio unavailable. Connect a playback device and choose Refresh devices.",
-                _ => string.Empty
-            };
+            _notice = MissingDeviceNotice();
         }
         catch (RecordingException ex)
         {
@@ -162,7 +182,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
 
         _notice = string.Empty;
         CopyLinkStatus = string.Empty;
-        return ShowTransitionAsync(_recorder.StartAsync(new(Microphone!.Id, Output!.Id, Folder), cancellationToken), cancellationToken);
+        return ShowTransitionAsync(_recorder.StartAsync(new(Microphone?.Id, Output?.Id, Folder, Mode), cancellationToken), cancellationToken);
     }
 
     /// <summary>Pauses or resumes the active session.</summary>
@@ -209,6 +229,15 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
             Refresh();
         }
     }
+
+    private string MissingDeviceNotice() => (UsesMicrophone && Microphone is null, UsesOutput && Output is null) switch
+    {
+        (true, true) => "Microphone and computer audio are unavailable. " +
+            "Connect devices and choose Refresh devices.",
+        (true, _) => "Microphone unavailable. Connect an input and choose Refresh devices.",
+        (_, true) => "Computer audio unavailable. Connect a playback device and choose Refresh devices.",
+        _ => string.Empty
+    };
 
     private void ApplyDevices(Devices devices, EndpointId? mic, EndpointId? output)
     {

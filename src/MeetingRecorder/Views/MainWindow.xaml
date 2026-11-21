@@ -63,12 +63,21 @@
                 </Border>
                 <DockPanel Grid.Row="1" Margin="0,12,0,8">
                     <Button DockPanel.Dock="Right" Content="Refresh devices" FontSize="12" Padding="9,4" IsEnabled="{Binding CanEdit}" Click="OnRefresh"/>
-                    <TextBlock Text="Audio sources" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Recording mode" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="ModeSelector" Margin="12,0,0,0" MinWidth="150" Padding="6,3"
+                                  SelectedValuePath="Tag" SelectedValue="{Binding Mode, Mode=TwoWay}"
+                                  IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Recording mode">
+                            <ComboBoxItem Content="Meeting" Tag="{x:Static domain:RecordingMode.Meeting}"/>
+                            <ComboBoxItem Content="Computer audio" Tag="{x:Static domain:RecordingMode.Audio}"/>
+                            <ComboBoxItem Content="Dictaphone" Tag="{x:Static domain:RecordingMode.Dictaphone}"/>
+                        </ComboBox>
+                    </StackPanel>
                 </DockPanel>
                 <Grid Grid.Row="2">
                     <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="10"/><ColumnDefinition/></Grid.ColumnDefinitions>
 
-                    <Border Grid.Column="0" Style="{StaticResource SourceBox}">
+                    <Border Grid.Column="0" Style="{StaticResource SourceBox}" IsEnabled="{Binding UsesMicrophone}">
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                             <TextBlock Text="Microphone" FontSize="16" FontWeight="SemiBold"/>
@@ -86,7 +95,7 @@
                         </Grid>
                     </Border>
 
-                    <Border Grid.Column="2" Style="{StaticResource SourceBox}">
+                    <Border Grid.Column="2" Style="{StaticResource SourceBox}" IsEnabled="{Binding UsesOutput}">
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                             <TextBlock Text="Computer audio" FontSize="16" FontWeight="SemiBold"/>

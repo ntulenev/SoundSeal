@@ -26,7 +26,7 @@ internal sealed class CaptureFactory : ICaptureFactory
     public async Task<ICaptureSession> OpenAsync(RecordingSettings settings, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        var file = await _store.CreateAsync(settings.Folder, cancellationToken).ConfigureAwait(false);
+        var file = await _store.CreateAsync(settings, cancellationToken).ConfigureAwait(false);
         return new CaptureSession(settings, _clock, file,
             (id, loopback) => WasapiEndpoint.Open(id, loopback, _options), _options.QueueCapacity);
     }

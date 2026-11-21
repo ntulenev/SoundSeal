@@ -7,10 +7,10 @@ namespace MeetingRecorder.Storage;
 public sealed class WaveRecordingStore : IRecordingStore
 {
     /// <inheritdoc/>
-    public Task<IRecordingDestination> CreateAsync(RecordingFolder folder, CancellationToken cancellationToken)
+    public Task<IRecordingDestination> CreateAsync(RecordingSettings settings, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(folder);
+        ArgumentNullException.ThrowIfNull(settings);
 
-        return Task.Run<IRecordingDestination>(() => WaveDestination.Create(folder, DateTime.Now), cancellationToken);
+        return Task.Run<IRecordingDestination>(() => WaveDestination.Create(settings.Folder, DateTime.Now, settings.Mode), cancellationToken);
     }
 }

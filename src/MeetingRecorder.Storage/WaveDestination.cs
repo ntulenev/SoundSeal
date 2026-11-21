@@ -60,13 +60,13 @@ internal sealed class WaveDestination : IRecordingDestination
     public void Dispose() => _stream.Dispose();
 
     /// <summary>Reserves an exclusive temporary file and writes its initial WAV header.</summary>
-    internal static WaveDestination Create(RecordingFolder folder, DateTime localTime)
+    internal static WaveDestination Create(RecordingFolder folder, DateTime localTime, RecordingMode mode = RecordingMode.Meeting)
     {
         ArgumentNullException.ThrowIfNull(folder);
         try
         {
             _ = Directory.CreateDirectory(folder.Value);
-            var name = localTime.ToString("'Meeting-'yyyy-MM-dd_HH-mm-ss",
+            var name = mode + "-" + localTime.ToString("yyyy-MM-dd_HH-mm-ss",
                 CultureInfo.InvariantCulture);
             for (var suffix = 0; ; suffix++)
             {

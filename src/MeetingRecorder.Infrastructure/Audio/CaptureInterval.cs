@@ -70,18 +70,18 @@ internal sealed class CaptureInterval
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using var mic = open(settings.MicrophoneId, false);
-            using var output = open(settings.OutputId, true);
-            mic.Start();
-            output.Start();
+            using var mic = settings.MicrophoneId is { } micId ? open(micId, false) : null;
+            using var output = settings.OutputId is { } outputId ? open(outputId, true) : null;
+            mic?.Start();
+            output?.Start();
             var start = _clock.Now.Ticks;
             _ready.SetResult(start);
             var watermark = start;
             while (Volatile.Read(ref _boundary) == OPEN_BOUNDARY)
             {
                 var now = _clock.Now.Ticks;
-                mic.Drain(Enqueue);
-                output.Drain(Enqueue);
+                mic?.Drain(Enqueue);
+                output?.Drain(Enqueue);
                 if (now - watermark >= WATERMARK_PERIOD)
                 {
                     // Leave room for engine buffering and ordinary scheduler jitter.
@@ -94,10 +94,10 @@ internal sealed class CaptureInterval
             }
 
             // Allow the engine to deliver a packet that straddles the command boundary.
-            var period = mic.EnginePeriod > output.EnginePeriod ? mic.EnginePeriod : output.EnginePeriod;
+            var period = TimeSpan.FromTicks(Math.Max(mic?.EnginePeriod.Ticks ?? 0, output?.EnginePeriod.Ticks ?? 0));
             Thread.Sleep(period + TimeSpan.FromMilliseconds(POLL_MILLISECONDS));
-            mic.Drain(Enqueue);
-            output.Drain(Enqueue);
+            mic?.Drain(Enqueue);
+            output?.Drain(Enqueue);
         }
         catch (Exception ex)
         {
