@@ -66,7 +66,7 @@ public sealed class RecordingValuesTests
         var block = new Pcm16Block([1, 2, 3, 4]);
         Assert.Equal(2L, block.Frames.Value);
         Assert.True(block.Bytes.SequenceEqual(new byte[] { 1, 2, 3, 4 }));
-        Assert.Throws<ArgumentException>(() => { _ = new Pcm16Block([1]); });
+        Assert.Throws<ArgumentException>(() => _ = new Pcm16Block([1]));
     }
 
     /// <summary>Recording file and folder paths are fully qualified and usable without filesystem access.</summary>

@@ -130,3 +130,12 @@ The user starts and stops each capture interval. Its single native thread acquir
 Asynchronous service methods require a `CancellationToken`. Device discovery, navigation, pending commands and interval startup observe the caller's token. Canceling startup releases the endpoints and discards an empty reservation. If any samples were captured, the writer attempts to publish them. Once the recorder accepts a pause or finish, a session-owned token lets it drain accepted samples and finish the WAV header even if the originating UI command is canceled. Each asynchronous xUnit test runs with its own cancellable deadline.
 
 Public types and members have XML documentation, which the build emits beside each assembly. Members are grouped by constants and fields, constructors, events, properties, methods, and nested types. The shared `.editorconfig` and `Directory.Build.props` enable code-style analysis and treat warnings as errors.
+
+To check the same code-style and analyzer diagnostics used in the editor, build Debug once so the WPF design-time types are available, then run the solution-wide check.
+
+```powershell
+dotnet build .\src\MeetingRecorder.slnx -c Debug
+dotnet format .\src\MeetingRecorder.slnx --verify-no-changes --no-restore --severity info
+```
+
+The WPF layer and xUnit tests retain their dispatcher or test synchronization context across awaits. Library code configures its continuations explicitly.

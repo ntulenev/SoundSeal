@@ -15,7 +15,7 @@ internal static class TestDeadline
     {
         using (deadline)
         {
-            await test(cancellationToken).WaitAsync(cancellationToken);
+            await test(cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 }

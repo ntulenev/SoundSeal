@@ -94,7 +94,7 @@ csharp_style_expression_bodied_constructors = false:suggestion
 #prefer use standard consructor
 csharp_style_prefer_primary_constructors = false:suggestion
 #prefer expression-bodied members for methods when they will be a single line
-csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_style_expression_bodied_methods = when_on_single_line:warning
 #prefer expression-bodied properties when they will be a single line
 csharp_style_expression_bodied_properties = when_on_single_line:suggestion
 #prefer expression-bodied properties accessors when they will be a single line
@@ -126,7 +126,8 @@ dotnet_style_object_initializer = true:suggestion
 #prefer inferred tuple element names
 dotnet_style_prefer_inferred_tuple_names = true:suggestion
 #prefer return statements to use a ternary conditional over an if-else statemen
-dotnet_style_prefer_conditional_expression_over_return = true:suggestion
+# Keep early validation guards readable before scheduling work or returning a result.
+dotnet_style_prefer_conditional_expression_over_return = false:suggestion
 #prefer excepting unnecessary lambda expression
 csharp_style_prefer_method_group_conversion = true:suggestion
 #prefer ternary null checking
@@ -325,3 +326,11 @@ dotnet_style_coalesce_expression = true:suggestion
 dotnet_style_null_propagation = true:warning
 dotnet_style_prefer_is_null_check_over_reference_equality_method = true:suggestion
 dotnet_style_prefer_auto_properties = true:suggestion
+
+# WPF event handlers and view models resume on the dispatcher to update controls.
+[MeetingRecorder/**.cs]
+dotnet_diagnostic.CA2007.severity = none
+
+# xUnit schedules asynchronous test continuations on its test synchronization context.
+[*.Tests/**.cs]
+dotnet_diagnostic.CA2007.severity = none

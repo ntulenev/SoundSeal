@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
 
 using FluentAssertions;
@@ -154,8 +155,10 @@ public sealed class RecorderViewModelTests
                 _ = check.ContinueWith(_ => dispatcher.BeginInvokeShutdown(DispatcherPriority.Send),
                     cancellationToken, TaskContinuationOptions.None, TaskScheduler.Default);
                 Dispatcher.Run();
-            });
-            thread.IsBackground = true;
+            })
+            {
+                IsBackground = true
+            };
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();
             await ready.Task.Unwrap().WaitAsync(TimeSpan.FromSeconds(20), cancellationToken);
@@ -372,14 +375,14 @@ public sealed class RecorderViewModelTests
             var item = (ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(list.Items.Count - 1);
             var lastCopy = FindVisualButton(item);
             Assert.NotNull(lastCopy);
-            lastCopy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            lastCopy.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             Assert.EndsWith("Part-0020.wav", copied, StringComparison.Ordinal);
             model.CopyRecordingLink(new RecordingFile(@"C:\Recordings\other.wav"));
             Assert.EndsWith("Part-0020.wav", copied, StringComparison.Ordinal);
             saved = single;
             model.SplitRecording = false;
             timer.Pulse();
-            copy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            copy.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             copied.Should().Be("file:///C:/Team%20meetings%20%231/Meeting-2026-11-21_10-00-00.wav");
             model.CopyLinkStatus.Should().Be("Link copied.");
             var selector = Descendants(window).OfType<ComboBox>().Single(c => c.Items.Count == 2);
@@ -389,11 +392,11 @@ public sealed class RecorderViewModelTests
             selector.SelectedIndex = 1;
             selector.IsDropDownOpen = false;
             model.Output.Should().Be(alternate);
-            FindButton("Browse…").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            FindButton("Browse…").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             FindButton("Select folder").IsVisible.Should().BeTrue();
             var path = (TextBox)window.FindName("BrowserPath");
             path.Text = @"C:\Recordings\Team’s meetings";
-            FindButton("Select folder").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            FindButton("Select folder").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             model.Folder.Should().Be(path.Text);
             recorder.Setup(r => r.StartAsync(new RecordingSettings("mic", "alt", model.Folder), It.Is<CancellationToken>(t => t.CanBeCanceled)))
                 .Callback(() => state = RecorderState.Recording).Returns(Task.CompletedTask);
@@ -401,34 +404,34 @@ public sealed class RecorderViewModelTests
                 .Returns(Task.CompletedTask);
             recorder.Setup(r => r.ResumeAsync(It.Is<CancellationToken>(t => t.CanBeCanceled))).Callback(() => state = RecorderState.Recording)
                 .Returns(Task.CompletedTask);
-            FindButton("Start recording").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            FindButton("Start recording").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             window.Title.Should().Contain("Recording");
             SaveScreenshot(window, "recording");
             var recordingLogo = logo.Source;
             recordingLogo.Should().NotBeNull().And.NotBeSameAs(idleLogo);
             model.CopyLinkStatus.Should().BeEmpty();
             copy.IsVisible.Should().BeFalse();
-            FindButton("Pause").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            FindButton("Pause").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             logo.Source.Should().BeSameAs(idleLogo);
-            FindButton("Resume").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            FindButton("Resume").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             logo.Source.Should().BeSameAs(recordingLogo);
             model.Display.CanPause.Should().BeTrue();
             window.Close();
             FindButton("Finish and exit").IsVisible.Should().BeTrue();
-            FindButton("Return to recorder").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            FindButton("Return to recorder").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             recorder.Setup(r => r.FinishAsync(It.Is<CancellationToken>(t => t.CanBeCanceled))).Callback(() => state = RecorderState.Error)
                 .Returns(Task.CompletedTask);
             window.Close();
-            FindButton("Finish and exit").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            FindButton("Finish and exit").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             window.IsVisible.Should().BeTrue();
             model.Display.Status.Should().Be("Error");
             logo.Source.Should().BeSameAs(idleLogo);
             recorder.Setup(r => r.FinishAsync(It.Is<CancellationToken>(t => t.CanBeCanceled))).Callback(() => state = RecorderState.Saved)
                 .Returns(Task.CompletedTask);
-            FindButton("Start recording").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            FindButton("Pause").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            FindButton("Start recording").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            FindButton("Pause").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             window.Close();
-            FindButton("Finish and exit").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            FindButton("Finish and exit").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             window.IsVisible.Should().BeFalse();
         }
         finally

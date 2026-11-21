@@ -38,8 +38,5 @@ internal abstract class ObservableObject : INotifyPropertyChanged
     /// Raises the <see cref="PropertyChanged"/> event for the specified property.
     /// </summary>
     /// <param name="propertyName">The name of the changed property.</param>
-    protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
+    protected void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

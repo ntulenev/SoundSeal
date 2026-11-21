@@ -14,16 +14,8 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     private readonly IUiTimer _timer;
     private readonly IFolderLauncher _folders;
     private readonly RecordingLinkClipboard _clipboard;
-    private string _folder = Path.Combine(Environment.GetFolderPath(
-        Environment.SpecialFolder.LocalApplicationData), "MeetingRecorder", "Recordings");
-    private Endpoint? _microphone;
-    private Endpoint? _output;
     private string _notice = string.Empty;
-    private string _copyLinkStatus = string.Empty;
     private RecorderDisplay _display;
-    private bool _refreshing;
-    private RecordingMode _mode;
-    private bool _splitRecording;
 
     /// <summary>Connects the recorder, device catalog, dispatcher timer, shell and clipboard to the window.</summary>
     public RecorderViewModel(IRecorder recorder, IDeviceCatalog devices, IUiTimer timer,
@@ -45,7 +37,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
 
     /// <summary>Recording mode selected before starting a session.</summary>
     public RecordingMode Mode {
-        get => _mode;
+        get;
         set
         {
             if (!Enum.IsDefined(value))
@@ -53,7 +45,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
                 throw new ArgumentOutOfRangeException(nameof(value));
             }
 
-            if (CanEdit && SetProperty(ref _mode, value))
+            if (CanEdit && SetProperty(ref field, value))
             {
                 _notice = MissingDeviceNotice();
                 OnPropertyChanged(nameof(UsesMicrophone));
@@ -65,12 +57,12 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
 
     /// <summary>Whether to publish each fifteen minutes of active audio as a separate WAV.</summary>
     public bool SplitRecording {
-        get => _splitRecording;
+        get;
         set
         {
             if (CanEdit)
             {
-                _ = SetProperty(ref _splitRecording, value);
+                _ = SetProperty(ref field, value);
             }
         }
     }
@@ -89,10 +81,10 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
 
     /// <summary>The microphone selected for the next recording.</summary>
     public Endpoint? Microphone {
-        get => _microphone;
+        get;
         set
         {
-            if (SetProperty(ref _microphone, value))
+            if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(CanStart));
             }
@@ -101,10 +93,10 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
 
     /// <summary>The playback endpoint selected for the next recording.</summary>
     public Endpoint? Output {
-        get => _output;
+        get;
         set
         {
-            if (SetProperty(ref _output, value))
+            if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(CanStart));
             }
@@ -113,32 +105,35 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
 
     /// <summary>Editable destination folder text.</summary>
     public string Folder {
-        get => _folder;
+        get;
         set
         {
             ArgumentNullException.ThrowIfNull(value);
-            if (SetProperty(ref _folder, value))
+            if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(CanStart));
             }
         }
-    }
+    } = Path.Combine(Environment.GetFolderPath(
+        Environment.SpecialFolder.LocalApplicationData), "MeetingRecorder", "Recordings");
 
     /// <summary>Latest display values for this window.</summary>
     public RecorderDisplay Display => _display;
 
     /// <summary>Feedback from the last attempt to copy a recording link.</summary>
     public string CopyLinkStatus {
-        get => _copyLinkStatus;
-        private set => SetProperty(ref _copyLinkStatus, value);
-    }
+        get;
+        private set => SetProperty(ref field, value);
+    } = string.Empty;
 
     /// <summary>Whether the recording settings can currently be changed.</summary>
-    public bool CanEdit => _display.CanEdit && !_refreshing;
+    public bool CanEdit => _display.CanEdit && !IsRefreshing;
 
     /// <summary>Whether both sources and an absolute recording folder are available.</summary>
     public bool CanStart => CanEdit && (!UsesMicrophone || Microphone is not null) && (!UsesOutput || Output is not null)
         && RecordingFolder.TryParse(Folder, out _);
+
+    private bool IsRefreshing { get; set; }
 
     /// <inheritdoc/>
     public void Dispose()
@@ -162,7 +157,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _refreshing = true;
+        IsRefreshing = true;
         var mic = Microphone?.Id;
         var output = Output?.Id;
         _notice = string.Empty;
@@ -180,7 +175,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            _refreshing = false;
+            IsRefreshing = false;
             Refresh();
         }
     }
