@@ -9,7 +9,9 @@ internal sealed class SourceTrack
     private readonly Queue<(long Start, float[] Samples)> _segments = new();
     private readonly long _origin;
     private long _expectedPosition;
-    private long _anchorPosition;
+    private long _lastPosition;
+    private bool _positionCountsMixFrames;
+    private long _framesSinceAnchor;
     private double _anchorTime;
     private double _nextTime;
     private double _rate;
@@ -37,8 +39,14 @@ internal sealed class SourceTrack
             ConfigureFilter(nominal);
         }
 
-        var gap = packet.Position != _expectedPosition;
-        if (packet.Qpc is null && (initial || _invalid || gap))
+        // A shared-mode loopback client can deliver 48 kHz PCM while its endpoint
+        // position advances at the 16 kHz Bluetooth transport rate.
+        var atExpectedPosition = packet.Position == _expectedPosition;
+        var positionGap = packet.Loopback
+            ? _positionCountsMixFrames && packet.Position > _expectedPosition
+            : !atExpectedPosition;
+        if (packet.Qpc is null && (initial || _invalid || positionGap || packet.Discontinuity ||
+            (packet.Loopback && packet.Position <= _lastPosition)))
         {
             throw new RecordingException("The device stopped providing reliable audio timestamps.");
         }
@@ -46,27 +54,29 @@ internal sealed class SourceTrack
         _invalid = packet.Qpc is null;
         var time = packet.Qpc ?? _nextTime;
         var offset = time - _nextTime;
-        var restart = initial || gap || Math.Abs(offset) > MAX_TIMESTAMP_JUMP;
-        if (!initial && (packet.Position < _expectedPosition || offset < -MAX_TIMESTAMP_JUMP ||
-            (!packet.Loopback && restart) ||
-            (packet.Discontinuity && (!packet.Loopback || !restart))))
+        var restart = initial || positionGap || packet.Discontinuity || Math.Abs(offset) > MAX_TIMESTAMP_JUMP;
+        if (!initial && (packet.Position < _lastPosition || offset < -MAX_TIMESTAMP_JUMP ||
+            (!packet.Loopback && restart)))
         {
             throw new RecordingException("Audio input was interrupted by a device discontinuity.");
         }
 
         if (restart)
         {
-            _anchorPosition = packet.Position;
+            _framesSinceAnchor = 0;
             _anchorTime = time;
             _s1 = _s2 = _s3 = _s4 = 0;
             _previous = 0;
-            _nextOutput = (long)Math.Ceiling((time - _origin) / RecordingFormat.TicksPerFrame);
+            // A valid discontinuity can overlap the previous packet by a few samples.
+            // Only append output beyond the end of the already aligned segment.
+            var firstFrame = (long)Math.Ceiling((time - _origin) / RecordingFormat.TicksPerFrame);
+            _nextOutput = Math.Max(_nextOutput, firstFrame);
         }
         else
         {
             if (packet.Qpc.HasValue && time - _anchorTime >= TimeSpan.TicksPerSecond)
             {
-                var measured = (packet.Position - _anchorPosition) * (double)TimeSpan.TicksPerSecond
+                var measured = _framesSinceAnchor * (double)TimeSpan.TicksPerSecond
                     / (time - _anchorTime);
                 if (Math.Abs((measured / nominal) - 1) > 0.02)
                 {
@@ -74,7 +84,7 @@ internal sealed class SourceTrack
                 }
 
                 _rate += (measured - _rate) * 0.2;
-                _anchorPosition = packet.Position;
+                _framesSinceAnchor = 0;
                 _anchorTime = time;
             }
 
@@ -82,18 +92,21 @@ internal sealed class SourceTrack
             time = _nextTime + Math.Clamp(offset * 0.08, -1000, 1000);
         }
 
+        _positionCountsMixFrames = !initial && atExpectedPosition;
+        _lastPosition = packet.Position;
         _expectedPosition = packet.Position + packet.Frames;
+        _framesSinceAnchor += packet.Frames;
         var step = TimeSpan.TicksPerSecond / _rate;
         _nextTime = time + (packet.Frames * step);
         var end = (long)Math.Ceiling((_nextTime - _origin) / RecordingFormat.TicksPerFrame);
-        var start = Math.Max(0, _nextOutput);
-        _nextOutput = end;
-        if (end <= 0)
+        var start = _nextOutput;
+        if (end <= start)
         {
             return;
         }
 
-        if (start < written && end > start)
+        _nextOutput = end;
+        if (start < written)
         {
             throw new RecordingException("Audio packets arrived too late to synchronize the recording.");
         }
@@ -106,7 +119,7 @@ internal sealed class SourceTrack
             return;
         }
 
-        var samples = new float[Math.Max(0, end - start)];
+        var samples = new float[end - start];
         var output = start;
         for (var i = 0; i < packet.Frames; i++)
         {
@@ -136,10 +149,7 @@ internal sealed class SourceTrack
             _previous = filtered;
         }
 
-        if (samples.Length > 0)
-        {
-            _segments.Enqueue((start, samples));
-        }
+        _segments.Enqueue((start, samples));
     }
 
     /// <summary>Whether a buffered segment starts before the exclusive output-frame boundary.</summary>
