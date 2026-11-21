@@ -34,7 +34,7 @@ public sealed class RecordingCoordinator : IRecorder, IDisposable
     public Levels Levels => _snapshot.State == RecorderState.Recording
         ? _session?.Levels ?? default : default;
 
-    /// <summary>Creates a fresh file and enters Recording after both devices start.</summary>
+    /// <summary>Creates a fresh file and enters Recording after the selected devices start.</summary>
     public async Task StartAsync(RecordingSettings settings, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(settings);

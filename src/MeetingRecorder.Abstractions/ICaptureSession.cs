@@ -2,7 +2,7 @@ using MeetingRecorder.Domain;
 
 namespace MeetingRecorder.Abstractions;
 
-/// <summary>Owns one temporary WAV and all intervals appended to it.</summary>
+/// <summary>Owns the recording destination and the active intervals appended to it.</summary>
 public interface ICaptureSession : IDisposable
 {
     /// <summary>Signals an interruption that requires finalization.</summary>
@@ -14,13 +14,13 @@ public interface ICaptureSession : IDisposable
     /// <summary>Current post-gain peaks for the active interval.</summary>
     Levels Levels { get; }
 
-    /// <summary>Starts both pinned devices and returns the opening QPC in 100 ns units.</summary>
+    /// <summary>Starts the pinned devices for the selected mode and returns the opening QPC in 100 ns units.</summary>
     /// <param name="cancellationToken">Cancels the wait for device startup.</param>
-    /// <returns>The inclusive start timestamp after both streams have started.</returns>
+    /// <returns>The inclusive start timestamp after the selected streams have started.</returns>
     /// <exception cref="RecordingException">A pinned endpoint could not start.</exception>
     Task<CaptureTimestamp> BeginIntervalAsync(CancellationToken cancellationToken);
 
-    /// <summary>Stops both devices and drains packets strictly before the QPC boundary.</summary>
+    /// <summary>Stops the selected devices and drains packets strictly before the QPC boundary.</summary>
     /// <param name="boundary">Exclusive cutoff in shared 100 ns performance-counter ticks.</param>
     /// <param name="cancellationToken">Signals cancellation of the operation.</param>
     /// <returns>A task that completes after the capture thread and mixer exit.</returns>
