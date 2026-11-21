@@ -8,9 +8,11 @@ using NAudio.Wave;
 
 namespace MeetingRecorder.Infrastructure.Tests;
 
+/// <summary>Tests native sample decoding.</summary>
 [Trait("Category", "Unit")]
 public sealed class InputFormatTests
 {
+    /// <summary>Signed and unsigned PCM decode negative full scale with headroom.</summary>
     [Theory(DisplayName = "Signed and unsigned PCM decode negative full scale with headroom")]
     [InlineData(8, "00")]
     [InlineData(16, "0080")]
@@ -24,6 +26,7 @@ public sealed class InputFormatTests
         format.Decode(Convert.FromHexString(sample)).Should().BeApproximately(-0.48f, 0.00001f);
     }
 
+    /// <summary>Floating-point devices suppress nonfinite values and bound peaks.</summary>
     [Theory(DisplayName = "Floating-point devices suppress nonfinite values and bound peaks")]
     [InlineData(32, double.NaN, 0)]
     [InlineData(64, double.PositiveInfinity, 0)]
@@ -38,6 +41,7 @@ public sealed class InputFormatTests
         format.Decode(data).Should().BeApproximately(expected, 0.00001f);
     }
 
+    /// <summary>WAVEFORMATEXTENSIBLE negotiates PCM and float and honors the LFE mask.</summary>
     [Theory(DisplayName = "WAVEFORMATEXTENSIBLE negotiates PCM and float and honors the LFE mask")]
     [InlineData(16)]
     [InlineData(32)]
@@ -52,6 +56,7 @@ public sealed class InputFormatTests
         format.Decode(frame).Should().Be(0);
     }
 
+    /// <summary>Unsupported layouts fail before capture starts.</summary>
     [Theory(DisplayName = "Unsupported layouts fail before capture starts")]
     [InlineData(7000, 1, 16, false)]
     [InlineData(48000, 33, 16, false)]
@@ -63,6 +68,7 @@ public sealed class InputFormatTests
         open.Should().Throw<RecordingException>().WithMessage("*unsupported*");
     }
 
+    /// <summary>Compressed input and inconsistent block alignment are rejected.</summary>
     [Fact(DisplayName = "Compressed input and inconsistent block alignment are rejected")]
     public void MalformedMixFormatShouldFail()
     {

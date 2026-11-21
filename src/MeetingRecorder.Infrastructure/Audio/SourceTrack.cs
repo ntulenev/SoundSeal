@@ -5,6 +5,7 @@ namespace MeetingRecorder.Infrastructure.Audio;
 /// <summary>Maps a device clock to the shared timeline and resamples one post-gain track.</summary>
 internal sealed class SourceTrack
 {
+    private const long MAX_TIMESTAMP_JUMP = 30 * TimeSpan.TicksPerMillisecond;
     private readonly Queue<(long Start, float[] Samples)> _segments = new();
     private readonly long _origin;
     private long _expectedPosition;
@@ -18,13 +19,16 @@ internal sealed class SourceTrack
     private float _previous;
     private long _nextOutput;
 
+    /// <summary>Starts a resampled track at the shared interval origin.</summary>
     internal SourceTrack(long origin)
     {
         _origin = origin;
     }
 
+    /// <summary>Aligns the packet against previously written output frames.</summary>
     internal void Add(AudioPacket packet, long written)
     {
+        ArgumentNullException.ThrowIfNull(packet);
         var initial = _rate == 0;
         var nominal = packet.Format.Rate;
         if (initial)
@@ -42,8 +46,8 @@ internal sealed class SourceTrack
         _invalid = packet.Qpc is null;
         var time = packet.Qpc ?? _nextTime;
         var offset = time - _nextTime;
-        var restart = initial || gap || Math.Abs(offset) > 300_000;
-        if (!initial && (packet.Position < _expectedPosition || offset < -300_000 ||
+        var restart = initial || gap || Math.Abs(offset) > MAX_TIMESTAMP_JUMP;
+        if (!initial && (packet.Position < _expectedPosition || offset < -MAX_TIMESTAMP_JUMP ||
             (!packet.Loopback && restart) ||
             (packet.Discontinuity && (!packet.Loopback || !restart))))
         {
@@ -138,6 +142,30 @@ internal sealed class SourceTrack
         }
     }
 
+    /// <summary>Fills the requested output slice with aligned samples and silence where needed.</summary>
+    internal void Read(long start, Span<float> target)
+    {
+        target.Clear();
+        var end = start + target.Length;
+        while (_segments.TryPeek(out var segment) && segment.Start < end)
+        {
+            var from = Math.Max(start, segment.Start);
+            var through = Math.Min(end, segment.Start + segment.Samples.Length);
+            if (through > from)
+            {
+                segment.Samples.AsSpan((int)(from - segment.Start), (int)(through - from))
+                    .CopyTo(target[(int)(from - start)..]);
+            }
+
+            if (segment.Start + segment.Samples.Length > end)
+            {
+                break;
+            }
+
+            _ = _segments.Dequeue();
+        }
+    }
+
     private void ConfigureFilter(int rate)
     {
         // Two cascaded low-pass biquads before rate conversion. Delay state spans packets.
@@ -160,28 +188,5 @@ internal sealed class SourceTrack
         _s3 = (_b1 * first) - (_a1 * second) + _s4;
         _s4 = (_b2 * first) - (_a2 * second);
         return (float)second;
-    }
-
-    internal void Read(long start, Span<float> target)
-    {
-        target.Clear();
-        var end = start + target.Length;
-        while (_segments.TryPeek(out var segment) && segment.Start < end)
-        {
-            var from = Math.Max(start, segment.Start);
-            var through = Math.Min(end, segment.Start + segment.Samples.Length);
-            if (through > from)
-            {
-                segment.Samples.AsSpan((int)(from - segment.Start), (int)(through - from))
-                    .CopyTo(target[(int)(from - start)..]);
-            }
-
-            if (segment.Start + segment.Samples.Length > end)
-            {
-                break;
-            }
-
-            _ = _segments.Dequeue();
-        }
     }
 }

@@ -14,15 +14,20 @@ internal sealed class WasapiPacketPump
     private readonly InputFormat _format;
     private readonly bool _loopback;
 
+    /// <summary>Reads one native capture buffer with its negotiated layout and device role.</summary>
     internal WasapiPacketPump(IWasapiBuffer buffer, InputFormat format, bool loopback)
     {
+        ArgumentNullException.ThrowIfNull(buffer);
+        ArgumentNullException.ThrowIfNull(format);
         _buffer = buffer;
         _format = format;
         _loopback = loopback;
     }
 
+    /// <summary>Copies pending packets and releases each buffer before delivering the packet.</summary>
     internal void Drain(Action<AudioPacket> accept)
     {
+        ArgumentNullException.ThrowIfNull(accept);
         while (_buffer.GetNextPacketSize() > 0)
         {
             var pointer = _buffer.Acquire(out var frames, out var flags,

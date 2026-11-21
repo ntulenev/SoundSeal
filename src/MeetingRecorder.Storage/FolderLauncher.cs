@@ -1,19 +1,23 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
 
+using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
 
-namespace MeetingRecorder.Platform;
+namespace MeetingRecorder.Storage;
 
-internal sealed class FolderLauncher : IFolderLauncher
+/// <summary>Opens the containing folder in the operating system shell.</summary>
+public sealed class FolderLauncher : IFolderLauncher
 {
-    public void Open(string file)
+    /// <inheritdoc/>
+    public void Open(RecordingFile file)
     {
+        ArgumentNullException.ThrowIfNull(file);
+
         try
         {
-            var directory = Path.GetDirectoryName(file);
-            if (directory is null || !Directory.Exists(directory))
+            var directory = Path.GetDirectoryName(file.Value);
+            if (!Directory.Exists(directory))
             {
                 throw new RecordingException("The recording folder is no longer available.");
             }

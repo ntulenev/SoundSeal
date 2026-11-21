@@ -4,12 +4,15 @@ using MeetingRecorder.Domain;
 
 namespace MeetingRecorder.Infrastructure.Wasapi;
 
+/// <summary>Translates native audio errors into actionable recording failures.</summary>
 internal static class DeviceErrors
 {
+    /// <summary>Identifies failures reported by Windows audio APIs.</summary>
     internal static bool IsDeviceError(Exception ex) =>
         ex is COMException or UnauthorizedAccessException or InvalidOperationException
             or ArgumentException or IOException or NotSupportedException;
 
+    /// <summary>Identifies the failing device role and preserves the native exception.</summary>
     internal static RecordingException Translate(bool loopback, Exception ex)
     {
         var source = loopback ? "Computer audio" : "Microphone";

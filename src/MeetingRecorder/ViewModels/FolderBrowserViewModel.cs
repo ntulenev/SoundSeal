@@ -1,7 +1,7 @@
 using System.IO;
 
+using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
-using MeetingRecorder.Platform;
 
 namespace MeetingRecorder.ViewModels;
 
@@ -16,15 +16,19 @@ internal sealed class FolderBrowserViewModel : ObservableObject
     private IReadOnlyList<string> _entries = [];
     private string? _selectedName;
 
+    /// <summary>Uses the supplied catalog to browse folders and drives.</summary>
     public FolderBrowserViewModel(IFolderCatalog catalog)
     {
+        ArgumentNullException.ThrowIfNull(catalog);
         _catalog = catalog;
     }
 
+    /// <summary>Editable folder path currently shown in the chooser.</summary>
     public string PathText {
         get => _pathText;
         set
         {
+            ArgumentNullException.ThrowIfNull(value);
             if (SetProperty(ref _pathText, value))
             {
                 CancelNavigation();
@@ -32,36 +36,48 @@ internal sealed class FolderBrowserViewModel : ObservableObject
         }
     }
 
+    /// <summary>Validation or navigation feedback for the current request.</summary>
     public string Notice => _notice;
+
+    /// <summary>Child directory names or available drive roots.</summary>
     public IReadOnlyList<string> Entries => _entries;
+
+    /// <summary>Entry selected in the current listing.</summary>
     public string? SelectedName {
         get => _selectedName;
         set => SetProperty(ref _selectedName, value);
     }
 
-    internal Task OpenAsync(string folder)
+    /// <summary>Opens the chooser at the closest existing ancestor of the requested path.</summary>
+    internal Task OpenAsync(string folder, CancellationToken cancellationToken)
     {
         _directory = null;
         SelectedName = null;
         PathText = folder;
         _ = SetProperty(ref _entries, [], nameof(Entries));
-        return NavigateAsync(folder, nearestExisting: true);
+        return NavigateAsync(folder, FolderLookup.NearestExisting, cancellationToken);
     }
 
+    /// <summary>Invalidates pending listings after edits or dismissal.</summary>
     internal void CancelNavigation() => _navigation++;
 
-    internal Task GoAsync() => NavigateAsync(PathText);
-    internal Task UpAsync() =>
-        NavigateAsync(_directory is null ? null : Path.GetDirectoryName(_directory));
+    /// <summary>Lists the folder entered in the path field.</summary>
+    internal Task GoAsync(CancellationToken cancellationToken) => NavigateAsync(PathText, FolderLookup.Exact, cancellationToken);
 
-    internal Task EnterAsync() =>
-        SelectedPath() is { } path ? NavigateAsync(path) : Task.CompletedTask;
+    /// <summary>Navigates to the parent directory or the drive list.</summary>
+    internal Task UpAsync(CancellationToken cancellationToken) =>
+        NavigateAsync(_directory is null ? null : Path.GetDirectoryName(_directory), FolderLookup.Exact, cancellationToken);
 
+    /// <summary>Opens the selected child directory.</summary>
+    internal Task EnterAsync(CancellationToken cancellationToken) =>
+        SelectedPath() is { } path ? NavigateAsync(path, FolderLookup.Exact, cancellationToken) : Task.CompletedTask;
+
+    /// <summary>Returns an absolute folder path or shows validation feedback.</summary>
     internal string? Choose()
     {
         var path = PathText == (_directory ?? string.Empty)
             ? SelectedPath() ?? PathText : PathText;
-        if (Path.IsPathFullyQualified(path))
+        if (RecordingFolder.TryParse(path, out _))
         {
             return path;
         }
@@ -74,22 +90,22 @@ internal sealed class FolderBrowserViewModel : ObservableObject
     private string? SelectedPath() => SelectedName is null ? null
         : Path.Combine(_directory ?? string.Empty, SelectedName);
 
-    private async Task NavigateAsync(string? path, bool nearestExisting = false)
+    private async Task NavigateAsync(string? path, FolderLookup lookup, CancellationToken cancellationToken)
     {
         var request = ++_navigation;
         _ = SetProperty(ref _notice, string.Empty, nameof(Notice));
         try
         {
-            var listing = await _catalog.ListAsync(path, nearestExisting);
+            var listing = await _catalog.ListAsync(path, lookup, cancellationToken);
             if (request != _navigation)
             {
                 return;
             }
 
-            _directory = listing.Directory;
+            _directory = listing.Directory?.Value;
             SelectedName = null;
             _ = SetProperty(ref _pathText, _directory ?? string.Empty, nameof(PathText));
-            _ = SetProperty(ref _entries, listing.Names, nameof(Entries));
+            _ = SetProperty(ref _entries, [.. listing.Names.Select(name => name.Value)], nameof(Entries));
         }
         catch (RecordingException ex)
         {

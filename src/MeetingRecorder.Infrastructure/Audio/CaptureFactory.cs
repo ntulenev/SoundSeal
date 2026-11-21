@@ -1,20 +1,33 @@
-using MeetingRecorder.Application.Abstractions;
+using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
-using MeetingRecorder.Infrastructure.Files;
 using MeetingRecorder.Infrastructure.Wasapi;
 
 namespace MeetingRecorder.Infrastructure.Audio;
 
+/// <summary>Composes the file and both pinned device streams for one session.</summary>
 internal sealed class CaptureFactory : ICaptureFactory
 {
     private readonly IRecordingClock _clock;
+    private readonly IRecordingStore _store;
+    private readonly AudioCaptureOptions _options;
 
-    public CaptureFactory(IRecordingClock clock)
+    /// <summary>Combines the recording store with the shared performance clock and device policy.</summary>
+    public CaptureFactory(IRecordingClock clock, IRecordingStore store, AudioCaptureOptions options)
     {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(options);
         _clock = clock;
+        _store = store;
+        _options = options;
     }
 
-    public ICaptureSession Open(RecordingSettings settings) =>
-        new CaptureSession(settings, _clock, WaveDestination.Create(settings.Folder,
-            DateTime.Now), WasapiEndpoint.Open);
+    /// <inheritdoc/>
+    public async Task<ICaptureSession> OpenAsync(RecordingSettings settings, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        var file = await _store.CreateAsync(settings.Folder, cancellationToken).ConfigureAwait(false);
+        return new CaptureSession(settings, _clock, file,
+            (id, loopback) => WasapiEndpoint.Open(id, loopback, _options), _options.QueueCapacity);
+    }
 }

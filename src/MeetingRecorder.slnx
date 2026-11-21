@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="MeetingRecorder.Abstractions/MeetingRecorder.Abstractions.csproj" />
+  <Project Path="MeetingRecorder.Storage/MeetingRecorder.Storage.csproj" />
   <Project Path="MeetingRecorder.Domain/MeetingRecorder.Domain.csproj" />
   <Project Path="MeetingRecorder.Domain.Tests/MeetingRecorder.Domain.Tests.csproj" />
   <Project Path="MeetingRecorder.Application/MeetingRecorder.Application.csproj" />

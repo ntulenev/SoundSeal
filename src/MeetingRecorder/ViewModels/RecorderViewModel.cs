@@ -1,9 +1,8 @@
 using System.IO;
 
-using MeetingRecorder.Application.Abstractions;
+using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
 using MeetingRecorder.Platform;
-using MeetingRecorder.Threading;
 
 namespace MeetingRecorder.ViewModels;
 
@@ -24,9 +23,15 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     private RecorderDisplay _display;
     private bool _refreshing;
 
+    /// <summary>Connects the recorder, device catalog, dispatcher timer, shell and clipboard to the window.</summary>
     public RecorderViewModel(IRecorder recorder, IDeviceCatalog devices, IUiTimer timer,
         IFolderLauncher folders, RecordingLinkClipboard clipboard)
     {
+        ArgumentNullException.ThrowIfNull(recorder);
+        ArgumentNullException.ThrowIfNull(devices);
+        ArgumentNullException.ThrowIfNull(timer);
+        ArgumentNullException.ThrowIfNull(folders);
+        ArgumentNullException.ThrowIfNull(clipboard);
         _recorder = recorder;
         _devices = devices;
         _timer = timer;
@@ -36,8 +41,13 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         _timer.Tick += OnTick;
     }
 
+    /// <summary>Microphone endpoints available for selection.</summary>
     public IReadOnlyList<Endpoint> Microphones { get; private set; } = [];
+
+    /// <summary>Playback endpoints available for loopback capture.</summary>
     public IReadOnlyList<Endpoint> Outputs { get; private set; } = [];
+
+    /// <summary>The microphone selected for the next recording.</summary>
     public Endpoint? Microphone {
         get => _microphone;
         set
@@ -48,6 +58,8 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
             }
         }
     }
+
+    /// <summary>The playback endpoint selected for the next recording.</summary>
     public Endpoint? Output {
         get => _output;
         set
@@ -58,10 +70,13 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
             }
         }
     }
+
+    /// <summary>Editable destination folder text.</summary>
     public string Folder {
         get => _folder;
         set
         {
+            ArgumentNullException.ThrowIfNull(value);
             if (SetProperty(ref _folder, value))
             {
                 OnPropertyChanged(nameof(CanStart));
@@ -69,22 +84,38 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Latest display values for this window.</summary>
     public RecorderDisplay Display => _display;
+
+    /// <summary>Feedback from the last attempt to copy a recording link.</summary>
     public string CopyLinkStatus {
         get => _copyLinkStatus;
         private set => SetProperty(ref _copyLinkStatus, value);
     }
-    public bool CanEdit => _display.CanEdit && !_refreshing;
-    public bool CanStart => CanEdit && Microphone is not null && Output is not null
-        && !string.IsNullOrWhiteSpace(Folder);
 
-    internal async Task InitializeAsync()
+    /// <summary>Whether the recording settings can currently be changed.</summary>
+    public bool CanEdit => _display.CanEdit && !_refreshing;
+
+    /// <summary>Whether both sources and an absolute recording folder are available.</summary>
+    public bool CanStart => CanEdit && Microphone is not null && Output is not null
+        && RecordingFolder.TryParse(Folder, out _);
+
+    /// <inheritdoc/>
+    public void Dispose()
     {
-        _timer.Start();
-        await RefreshDevicesAsync();
+        _timer.StopTicks();
+        _timer.Tick -= OnTick;
     }
 
-    internal async Task RefreshDevicesAsync()
+    /// <summary>Starts display updates and loads the available audio devices.</summary>
+    internal async Task InitializeAsync(CancellationToken cancellationToken)
+    {
+        _timer.StartTicks();
+        await RefreshDevicesAsync(cancellationToken);
+    }
+
+    /// <summary>Refreshes both endpoint lists while preserving available selections.</summary>
+    internal async Task RefreshDevicesAsync(CancellationToken cancellationToken)
     {
         if (!CanEdit)
         {
@@ -98,7 +129,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         Refresh();
         try
         {
-            var devices = await Task.Run(_devices.Read);
+            var devices = await _devices.ReadAsync(cancellationToken);
             ApplyDevices(devices, mic, output);
             _notice = (Microphone, Output) switch
             {
@@ -121,21 +152,8 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void ApplyDevices(Devices devices, string? mic, string? output)
-    {
-        Microphones = devices.Microphones;
-        Outputs = devices.Outputs;
-        OnPropertyChanged(nameof(Microphones));
-        OnPropertyChanged(nameof(Outputs));
-        Microphone = Select(Microphones, mic);
-        Output = Select(Outputs, output);
-    }
-
-    private static Endpoint? Select(IReadOnlyList<Endpoint> list, string? id) =>
-        list.FirstOrDefault(device => device.Id == id)
-        ?? list.FirstOrDefault(device => device.IsDefault) ?? (list.Count == 0 ? null : list[0]);
-
-    internal Task StartAsync()
+    /// <summary>Starts recording with the currently selected endpoints and folder.</summary>
+    internal Task StartAsync(CancellationToken cancellationToken)
     {
         if (!CanStart)
         {
@@ -144,21 +162,17 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
 
         _notice = string.Empty;
         CopyLinkStatus = string.Empty;
-        return ShowTransitionAsync(_recorder.StartAsync(new(Microphone!.Id, Output!.Id, Folder)));
+        return ShowTransitionAsync(_recorder.StartAsync(new(Microphone!.Id, Output!.Id, Folder), cancellationToken), cancellationToken);
     }
 
-    internal Task TogglePauseAsync() => ShowTransitionAsync(Display.CanResume
-        ? _recorder.ResumeAsync() : _recorder.PauseAsync());
+    /// <summary>Pauses or resumes the active session.</summary>
+    internal Task TogglePauseAsync(CancellationToken cancellationToken) => ShowTransitionAsync(Display.CanResume
+        ? _recorder.ResumeAsync(cancellationToken) : _recorder.PauseAsync(cancellationToken), cancellationToken);
 
-    internal Task FinishAsync() => ShowTransitionAsync(_recorder.FinishAsync());
+    /// <summary>Waits for publication and refreshes the saved recording details.</summary>
+    internal Task FinishAsync(CancellationToken cancellationToken) => ShowTransitionAsync(_recorder.FinishAsync(cancellationToken), cancellationToken);
 
-    private async Task ShowTransitionAsync(Task operation)
-    {
-        Refresh();
-        await operation;
-        Refresh();
-    }
-
+    /// <summary>Copies a link to the published recording and updates the clipboard status.</summary>
     internal void CopyRecordingLink()
     {
         if (Display is not { CanCopyLink: true, File: { } file })
@@ -177,6 +191,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Opens the folder containing the published or recoverable file.</summary>
     internal void OpenFolder()
     {
         if (Display.File is not { } path)
@@ -191,6 +206,34 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         catch (RecordingException ex)
         {
             _notice = ex.Message;
+            Refresh();
+        }
+    }
+
+    private void ApplyDevices(Devices devices, EndpointId? mic, EndpointId? output)
+    {
+        Microphones = devices.Microphones;
+        Outputs = devices.Outputs;
+        OnPropertyChanged(nameof(Microphones));
+        OnPropertyChanged(nameof(Outputs));
+        Microphone = Select(Microphones, mic);
+        Output = Select(Outputs, output);
+    }
+
+    private static Endpoint? Select(IReadOnlyList<Endpoint> list, EndpointId? id) =>
+        list.FirstOrDefault(device => device.Id == id)
+        ?? list.FirstOrDefault(device => device.IsDefault) ?? (list.Count == 0 ? null : list[0]);
+
+    private async Task ShowTransitionAsync(Task operation, CancellationToken cancellationToken)
+    {
+        Refresh();
+        try
+        {
+            await operation;
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+        finally
+        {
             Refresh();
         }
     }
@@ -212,11 +255,5 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         _ = SetProperty(ref _display, ReadDisplay(), nameof(Display));
         OnPropertyChanged(nameof(CanEdit));
         OnPropertyChanged(nameof(CanStart));
-    }
-
-    public void Dispose()
-    {
-        _timer.Stop();
-        _timer.Tick -= OnTick;
     }
 }

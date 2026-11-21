@@ -6,11 +6,22 @@ using MeetingRecorder.Domain;
 namespace MeetingRecorder.Platform;
 
 /// <summary>Copies a local or network recording path as an escaped file URI.</summary>
-internal sealed class RecordingLinkClipboard(Action<string> setText)
+internal sealed class RecordingLinkClipboard
 {
-    internal void Copy(string file)
+    private readonly Action<string> _setText;
+
+    /// <summary>Creates a clipboard writer for escaped file links.</summary>
+    internal RecordingLinkClipboard(Action<string> setText)
     {
-        var path = Path.GetFullPath(file);
+        ArgumentNullException.ThrowIfNull(setText);
+        _setText = setText;
+    }
+
+    /// <summary>Writes the published recording as an absolute file URI.</summary>
+    internal void Copy(RecordingFile file)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        var path = Path.GetFullPath(file.Value);
         if (path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
         {
             path = @"\\" + path[8..];
@@ -31,7 +42,7 @@ internal sealed class RecordingLinkClipboard(Action<string> setText)
 
         try
         {
-            setText(uri.AbsoluteUri);
+            _setText(uri.AbsoluteUri);
         }
         catch (ExternalException ex)
         {

@@ -1,4 +1,4 @@
-using MeetingRecorder.Application.Abstractions;
+using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
 
 namespace MeetingRecorder.Application;
@@ -6,6 +6,7 @@ namespace MeetingRecorder.Application;
 /// <summary>Owns transitions, active time and exactly one finalization per recording.</summary>
 public sealed class RecordingCoordinator : IRecorder, IDisposable
 {
+    private readonly CancellationTokenSource _lifetime = new();
     private readonly ICaptureFactory _factory;
     private readonly IRecordingClock _clock;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -14,6 +15,7 @@ public sealed class RecordingCoordinator : IRecorder, IDisposable
     private long _generation;
     private int _disposed;
 
+    /// <summary>Creates the session coordinator with its capture factory and shared clock.</summary>
     public RecordingCoordinator(ICaptureFactory factory, IRecordingClock clock)
     {
         ArgumentNullException.ThrowIfNull(factory);
@@ -22,17 +24,22 @@ public sealed class RecordingCoordinator : IRecorder, IDisposable
         _clock = clock;
     }
 
+    /// <inheritdoc/>
     public RecorderSnapshot Snapshot => _snapshot;
-    public TimeSpan Elapsed => _snapshot.Elapsed(_clock.Now);
+
+    /// <inheritdoc/>
+    public RecordingDuration Elapsed => _snapshot.Elapsed(_clock.Now);
+
+    /// <inheritdoc/>
     public Levels Levels => _snapshot.State == RecorderState.Recording
         ? _session?.Levels ?? default : default;
 
     /// <summary>Creates a fresh file and enters Recording after both devices start.</summary>
-    public async Task StartAsync(RecordingSettings settings)
+    public async Task StartAsync(RecordingSettings settings, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(settings);
         var requested = _snapshot;
-        await _gate.WaitAsync().ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (!ReferenceEquals(requested, _snapshot) ||
@@ -46,14 +53,19 @@ public sealed class RecordingCoordinator : IRecorder, IDisposable
             _snapshot = new(RecorderState.Starting);
             try
             {
-                _session = await Task.Run(() => _factory.Open(settings)).ConfigureAwait(false);
+                _session = await _factory.OpenAsync(settings, cancellationToken).ConfigureAwait(false);
                 _session.Interrupted += OnInterrupted;
-                var start = await _session.BeginIntervalAsync().ConfigureAwait(false);
-                _snapshot = new(RecorderState.Recording, Started: start);
+                var start = await _session.BeginIntervalAsync(cancellationToken).ConfigureAwait(false);
+                _snapshot = new(RecorderState.Recording, started: start);
+            }
+            catch (OperationCanceledException)
+            {
+                await PublishAsync("Recording canceled.", EmptyRecordingPolicy.Discard, _lifetime.Token).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
             }
             catch (RecordingException ex)
             {
-                await PublishAsync(ex.Message, discardEmpty: true).ConfigureAwait(false);
+                await PublishAsync(ex.Message, EmptyRecordingPolicy.Discard, _lifetime.Token).ConfigureAwait(false);
             }
         }
         finally
@@ -63,11 +75,11 @@ public sealed class RecordingCoordinator : IRecorder, IDisposable
     }
 
     /// <summary>Closes the current interval at the instant of the pause request.</summary>
-    public async Task PauseAsync()
+    public async Task PauseAsync(CancellationToken cancellationToken)
     {
         var boundary = _clock.Now;
         var requested = _snapshot;
-        await _gate.WaitAsync().ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (!ReferenceEquals(requested, _snapshot) || requested.State != RecorderState.Recording)
@@ -75,14 +87,14 @@ public sealed class RecordingCoordinator : IRecorder, IDisposable
                 return;
             }
 
-            await EndAsync(boundary, RecorderState.Pausing).ConfigureAwait(false);
+            await EndAsync(boundary, RecorderState.Pausing, _lifetime.Token).ConfigureAwait(false);
             if (_session!.Problem is not null)
             {
-                await PublishAsync(_session.Problem).ConfigureAwait(false);
+                await PublishAsync(_session.Problem, EmptyRecordingPolicy.Keep, _lifetime.Token).ConfigureAwait(false);
             }
             else
             {
-                _snapshot = _snapshot with { State = RecorderState.Paused };
+                _snapshot = new(RecorderState.Paused, _snapshot.ActiveTime);
             }
         }
         finally
@@ -92,10 +104,10 @@ public sealed class RecordingCoordinator : IRecorder, IDisposable
     }
 
     /// <summary>Reopens the pinned endpoints and appends a new interval.</summary>
-    public async Task ResumeAsync()
+    public async Task ResumeAsync(CancellationToken cancellationToken)
     {
         var requested = _snapshot;
-        await _gate.WaitAsync().ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (!ReferenceEquals(requested, _snapshot) || requested.State != RecorderState.Paused)
@@ -103,15 +115,20 @@ public sealed class RecordingCoordinator : IRecorder, IDisposable
                 return;
             }
 
-            _snapshot = requested with { State = RecorderState.Resuming };
+            _snapshot = new(RecorderState.Resuming, requested.ActiveTime);
             try
             {
-                var start = await _session!.BeginIntervalAsync().ConfigureAwait(false);
-                _snapshot = requested with { State = RecorderState.Recording, Started = start };
+                var start = await _session!.BeginIntervalAsync(cancellationToken).ConfigureAwait(false);
+                _snapshot = new(RecorderState.Recording, requested.ActiveTime, start);
+            }
+            catch (OperationCanceledException)
+            {
+                await PublishAsync("Recording canceled.", EmptyRecordingPolicy.Keep, _lifetime.Token).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
             }
             catch (RecordingException ex)
             {
-                await PublishAsync(ex.Message).ConfigureAwait(false);
+                await PublishAsync(ex.Message, EmptyRecordingPolicy.Keep, _lifetime.Token).ConfigureAwait(false);
             }
         }
         finally
@@ -121,21 +138,38 @@ public sealed class RecordingCoordinator : IRecorder, IDisposable
     }
 
     /// <summary>Drains an open interval and awaits publication or a recovery result.</summary>
-    public Task FinishAsync() =>
-        FinishSessionAsync(Volatile.Read(ref _generation), _clock.Now);
+    public Task FinishAsync(CancellationToken cancellationToken) =>
+        FinishSessionAsync(Volatile.Read(ref _generation), _clock.Now, null, cancellationToken);
+
+    /// <summary>Waits for any active recording to finalize, then releases the command gate.</summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            try
+            {
+                FinishAsync(_lifetime.Token).GetAwaiter().GetResult();
+            }
+            finally
+            {
+                _lifetime.Cancel();
+                _lifetime.Dispose();
+                _gate.Dispose();
+            }
+        }
+    }
 
     private void OnInterrupted(object? sender, EventArgs e)
     {
         if (sender is ICaptureSession session)
         {
-            _ = FinishSessionAsync(Volatile.Read(ref _generation), _clock.Now, session);
+            _ = FinishSessionAsync(Volatile.Read(ref _generation), _clock.Now, session, _lifetime.Token);
         }
     }
 
-    private async Task FinishSessionAsync(long generation, long end,
-        ICaptureSession? interrupted = null)
+    private async Task FinishSessionAsync(long generation, CaptureTimestamp end, ICaptureSession? interrupted, CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync().ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_session is not { } owner || generation != _generation ||
@@ -146,10 +180,10 @@ public sealed class RecordingCoordinator : IRecorder, IDisposable
 
             if (_snapshot.Started.HasValue)
             {
-                await EndAsync(end, RecorderState.Saving).ConfigureAwait(false);
+                await EndAsync(end, RecorderState.Saving, _lifetime.Token).ConfigureAwait(false);
             }
 
-            await PublishAsync(owner.Problem).ConfigureAwait(false);
+            await PublishAsync(owner.Problem, EmptyRecordingPolicy.Keep, _lifetime.Token).ConfigureAwait(false);
         }
         finally
         {
@@ -157,30 +191,25 @@ public sealed class RecordingCoordinator : IRecorder, IDisposable
         }
     }
 
-    private async Task EndAsync(long end, RecorderState transition)
+    private async Task EndAsync(CaptureTimestamp end, RecorderState transition, CancellationToken cancellationToken)
     {
-        _snapshot = new(transition, _snapshot.Elapsed(end).Ticks);
-        await _session!.EndIntervalAsync(end).ConfigureAwait(false);
+        _snapshot = new(transition, _snapshot.Elapsed(end));
+        await _session!.EndIntervalAsync(end, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task PublishAsync(string? problem, bool discardEmpty = false)
+    private async Task PublishAsync(RecordingProblem? problem, EmptyRecordingPolicy emptyPolicy, CancellationToken cancellationToken)
     {
-        _snapshot = _snapshot with { State = RecorderState.Saving };
+        _snapshot = new(RecorderState.Saving, _snapshot.ActiveTime);
         var result = new RecordingResult(null, 0, problem, false);
         if (_session is { } session)
         {
             session.Interrupted -= OnInterrupted;
             try
             {
-                result = await session.CompleteAsync(discardEmpty).ConfigureAwait(false);
-                // The writer can report its own error even when reopening a device failed.
-                if (problem is not null && (result.Problem is null ||
-                    !result.Problem.StartsWith(problem, StringComparison.Ordinal)))
+                result = await session.CompleteAsync(emptyPolicy, cancellationToken).ConfigureAwait(false);
+                if (problem is not null)
                 {
-                    result = result with
-                    {
-                        Problem = result.Problem is null ? problem : problem + " " + result.Problem
-                    };
+                    result = result.WithCaptureProblem(problem);
                 }
             }
             finally
@@ -190,24 +219,8 @@ public sealed class RecordingCoordinator : IRecorder, IDisposable
             }
         }
 
-        _snapshot = new(result.Published && result.Problem is null
+        _snapshot = new(result.IsSuccessful
             ? RecorderState.Saved : RecorderState.Error,
-            RecordingFormat.Duration(result.Frames).Ticks, Result: result);
-    }
-
-    /// <summary>Waits for any active recording to finalize, then releases the command gate.</summary>
-    public void Dispose()
-    {
-        if (Interlocked.Exchange(ref _disposed, 1) == 0)
-        {
-            try
-            {
-                FinishAsync().GetAwaiter().GetResult();
-            }
-            finally
-            {
-                _gate.Dispose();
-            }
-        }
+            result: result);
     }
 }

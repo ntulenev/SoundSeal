@@ -10,11 +10,13 @@ using NAudio.CoreAudioApi;
 
 namespace MeetingRecorder.Infrastructure.Tests;
 
+/// <summary>Tests native buffer ownership.</summary>
 [Trait("Category", "Unit")]
 public sealed class WasapiPacketPumpTests
 {
     private static readonly InputFormat FORMAT = new(48000, 1, 16, false, 0);
 
+    /// <summary>WASAPI packets preserve source, independent storage and timing flags.</summary>
     [Theory(DisplayName = "WASAPI packets preserve source, independent storage and timing flags")]
     [InlineData(false, false)]
     [InlineData(false, true)]
@@ -43,6 +45,7 @@ public sealed class WasapiPacketPumpTests
         result.Discontinuity.Should().Be(timestampError);
     }
 
+    /// <summary>Silent WASAPI buffers may contain no native sample pointer.</summary>
     [Fact(DisplayName = "Silent WASAPI buffers may contain no native sample pointer")]
     public void SilentPacketShouldReleaseFramesWithoutReadingMemory()
     {
@@ -57,6 +60,7 @@ public sealed class WasapiPacketPumpTests
         buffer.Released.Should().Be(12);
     }
 
+    /// <summary>An empty acquire ends polling without releasing unacquired frames.</summary>
     [Fact(DisplayName = "An empty acquire ends polling without releasing unacquired frames")]
     public void EmptyPacketShouldEndDrain()
     {
@@ -68,6 +72,7 @@ public sealed class WasapiPacketPumpTests
         buffer.Released.Should().BeNull();
     }
 
+    /// <summary>Invalid native buffers are released before an interruption propagates.</summary>
     [Theory(DisplayName = "Invalid native buffers are released before an interruption propagates")]
     [InlineData(3, false, false)]
     [InlineData(int.MaxValue, true, false)]

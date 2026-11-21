@@ -15,7 +15,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 # Multiple test hosts can exercise the same assembly. Count each line and IL branch
 # once per module, and mark it covered when any test host executed it.
 $modules = [ordered]@{}
-foreach ($name in 'MeetingRecorder.Domain', 'MeetingRecorder.Application', 'MeetingRecorder.Infrastructure', 'SoundSeal') {
+foreach ($name in 'MeetingRecorder.Domain', 'MeetingRecorder.Application', 'MeetingRecorder.Infrastructure', 'MeetingRecorder.Storage', 'SoundSeal') {
     $modules[$name] = @{ Lines = @{}; Branches = @{} }
 }
 

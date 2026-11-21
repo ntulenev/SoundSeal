@@ -5,11 +5,13 @@ using MeetingRecorder.Infrastructure.Audio;
 
 namespace MeetingRecorder.Infrastructure.Tests;
 
+/// <summary>Tests device timestamp recovery.</summary>
 [Trait("Category", "Unit")]
 public sealed class SourceTimingTests
 {
     private static readonly InputFormat FORMAT = new(16000, 1, 16, false, 0);
 
+    /// <summary>Unrecoverable device-position and QPC discontinuities interrupt capture.</summary>
     [Theory(DisplayName = "Unrecoverable device-position and QPC discontinuities interrupt capture")]
     [InlineData(159, 100000L, false)]
     [InlineData(170, 100000L, false)]
@@ -24,6 +26,7 @@ public sealed class SourceTimingTests
         next.Should().Throw<RecordingException>().WithMessage("*discontinuity*");
     }
 
+    /// <summary>Samples arriving after their output frames were written cannot replace silence.</summary>
     [Fact(DisplayName = "Samples arriving after their output frames were written cannot replace silence")]
     public void LatePacketShouldInterrupt()
     {
@@ -32,6 +35,7 @@ public sealed class SourceTimingTests
         add.Should().Throw<RecordingException>().WithMessage("*too late*");
     }
 
+    /// <summary>A wildly different measured rate interrupts instead of stretching speech.</summary>
     [Fact(DisplayName = "A wildly different measured rate interrupts instead of stretching speech")]
     public void UnreliableRateShouldInterrupt()
     {
@@ -41,6 +45,7 @@ public sealed class SourceTimingTests
         next.Should().Throw<RecordingException>().WithMessage("*synchronized*");
     }
 
+    /// <summary>Loopback after a connected silent gap resumes at its new timestamp.</summary>
     [Fact(DisplayName = "Loopback after a connected silent gap resumes at its new timestamp")]
     public void SilentGapShouldRestartLoopbackTrack()
     {

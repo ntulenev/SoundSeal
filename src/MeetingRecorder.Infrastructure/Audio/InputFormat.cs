@@ -8,20 +8,34 @@ namespace MeetingRecorder.Infrastructure.Audio;
 /// <summary>One endpoint's native sample layout and signed, normalized channel gains.</summary>
 internal sealed class InputFormat
 {
+    private const float TRACK_GAIN = 0.48f;
     private readonly float[] _weights;
-    private readonly bool _floating;
+    private readonly SampleEncoding _encoding;
     private readonly int _bytes;
 
-    internal InputFormat(int rate, int channels, int bits, bool floating, int speakerMask)
+    /// <summary>Negotiates a native sample layout against the configured limits.</summary>
+    internal InputFormat(int rate, int channels, int bits, bool floating, int speakerMask,
+        AudioCaptureOptions? options = null)
     {
-        if (rate is < 8000 or > 384000 || channels is < 1 or > 32 ||
-            (floating ? bits is not (32 or 64) : bits is not (8 or 16 or 24 or 32)))
+        var policy = options ?? AudioCaptureOptions.Default;
+        _encoding = (floating, bits) switch
+        {
+            (false, 8) => SampleEncoding.Pcm8,
+            (false, 16) => SampleEncoding.Pcm16,
+            (false, 24) => SampleEncoding.Pcm24,
+            (false, 32) => SampleEncoding.Pcm32,
+            (true, 32) => SampleEncoding.Float32,
+            (true, 64) => SampleEncoding.Float64,
+            _ => throw new RecordingException("The selected device uses an unsupported audio format.")
+        };
+        if (rate < policy.MinimumSampleRate || rate > policy.MaximumSampleRate
+            || channels < 1 || channels > policy.MaximumChannels ||
+            !policy.AllowedEncodings.Contains(_encoding))
         {
             throw new RecordingException("The selected device uses an unsupported audio format.");
         }
 
         Rate = rate;
-        _floating = floating;
         _bytes = bits / 8;
         Stride = channels * _bytes;
         _weights = new float[channels];
@@ -46,23 +60,33 @@ internal sealed class InputFormat
         }
     }
 
+    /// <summary>Native frames per second.</summary>
     internal int Rate { get; }
+
+    /// <summary>Bytes occupied by a complete interleaved native frame.</summary>
     internal int Stride { get; }
 
+    /// <summary>Decodes and downmixes the first native frame at the fixed track gain.</summary>
     internal float Decode(ReadOnlySpan<byte> frame)
     {
+        if (frame.Length < Stride)
+        {
+            throw new ArgumentException("A complete source frame is required.", nameof(frame));
+        }
+
         var mono = 0f;
         foreach (var weight in _weights)
         {
-            var sample = (_floating, _bytes) switch
+            var sample = _encoding switch
             {
-                (true, 4) => BinaryPrimitives.ReadSingleLittleEndian(frame),
-                (true, 8) => (float)BinaryPrimitives.ReadDoubleLittleEndian(frame),
-                (false, 1) => (frame[0] - 128) / 128f,
-                (false, 2) => BinaryPrimitives.ReadInt16LittleEndian(frame) / 32768f,
-                (false, 3) => ((frame[0] << 8) | (frame[1] << 16) | (frame[2] << 24))
+                SampleEncoding.Float32 => BinaryPrimitives.ReadSingleLittleEndian(frame),
+                SampleEncoding.Float64 => (float)BinaryPrimitives.ReadDoubleLittleEndian(frame),
+                SampleEncoding.Pcm8 => (frame[0] - 128) / 128f,
+                SampleEncoding.Pcm16 => BinaryPrimitives.ReadInt16LittleEndian(frame) / 32768f,
+                SampleEncoding.Pcm24 => ((frame[0] << 8) | (frame[1] << 16) | (frame[2] << 24))
                     / 2147483648f,
-                _ => BinaryPrimitives.ReadInt32LittleEndian(frame) / 2147483648f
+                SampleEncoding.Pcm32 => BinaryPrimitives.ReadInt32LittleEndian(frame) / 2147483648f,
+                _ => throw new InvalidOperationException("Unrecognized sample encoding.")
             };
             if (float.IsFinite(sample))
             {
@@ -72,6 +96,6 @@ internal sealed class InputFormat
             frame = frame[_bytes..];
         }
 
-        return mono * 0.48f;
+        return mono * TRACK_GAIN;
     }
 }

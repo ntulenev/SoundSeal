@@ -3,21 +3,24 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <NoWarn>$(NoWarn);CS1591;CA1303;CA1515</NoWarn>
+    <NoWarn>$(NoWarn);CA1303;CA1515</NoWarn>
     <UseWPF>true</UseWPF>
     <OutputType>WinExe</OutputType>
     <AssemblyName>SoundSeal</AssemblyName>
     <Product>SoundSeal</Product>
-    <Version>1.3.0</Version>
+    <Version>2.0.0</Version>
     <ApplicationIcon>Assets\SoundSeal.ico</ApplicationIcon>
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\MeetingRecorder.Domain\MeetingRecorder.Domain.csproj" />
     <ProjectReference Include="..\MeetingRecorder.Application\MeetingRecorder.Application.csproj" />
+    <ProjectReference Include="..\MeetingRecorder.Abstractions\MeetingRecorder.Abstractions.csproj" />
+    <ProjectReference Include="..\MeetingRecorder.Storage\MeetingRecorder.Storage.csproj" />
     <ProjectReference Include="..\MeetingRecorder.Infrastructure\MeetingRecorder.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Resource Include="Assets\SoundSeal.png" />
     <Resource Include="Assets\SoundSeal-Recording.png" />
     <Resource Include="Assets\SoundSeal.ico" />

@@ -1,4 +1,4 @@
-using MeetingRecorder.Application.Abstractions;
+using MeetingRecorder.Abstractions;
 
 using Microsoft.Extensions.DependencyInjection;
 
