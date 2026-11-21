@@ -19,9 +19,9 @@ using Moq;
 
 namespace MeetingRecorder.Tests;
 
-[Trait("Category", "Unit")]
 public sealed class RecorderViewModelTests
 {
+    [Trait("Category", "Unit")]
     [Fact(DisplayName = "Endpoint selection, actions and timer follow one recording state")]
     public async Task ViewModelShouldBindSelectedDevicesAndFeedback()
     {
@@ -84,6 +84,7 @@ public sealed class RecorderViewModelTests
         model.CanStart.Should().BeTrue();
     }
 
+    [Trait("Category", "Unit")]
     [Theory(DisplayName = "User-facing status is English under a German display culture")]
     [InlineData(RecorderState.Ready, "Ready")]
     [InlineData(RecorderState.Starting, "Connecting to audio devices…")]
@@ -110,6 +111,7 @@ public sealed class RecorderViewModelTests
         }
     }
 
+    [Trait("Category", "Unit")]
     [Theory(DisplayName = "Errors distinguish saved, unfinished and missing audio")]
     [InlineData(true, "unterwegs.wav", "Available audio saved.")]
     [InlineData(false, "unterwegs.partial", "Unfinished file retained.")]
@@ -123,6 +125,7 @@ public sealed class RecorderViewModelTests
         display.File.Should().Be(path);
     }
 
+    [Trait("Category", "Integration")]
     [Fact(DisplayName = "The WPF window, folder chooser and close prompt have English controls at minimum size")]
     public async Task WindowShouldPresentEnglishInteractions()
     {
@@ -152,7 +155,8 @@ public sealed class RecorderViewModelTests
         var catalog = new Mock<IDeviceCatalog>(MockBehavior.Strict);
         var microphone = new Endpoint("mic", "Mikrofon (USB-Konferenzsystem)", true);
         var output = new Endpoint("out", "Наушники (HP USB-C Dock Audio Headset)", true);
-        catalog.Setup(c => c.Read()).Returns(new Devices([microphone], [output]));
+        var alternate = new Endpoint("alt", "Alternate output", false);
+        catalog.Setup(c => c.Read()).Returns(new Devices([microphone], [output, alternate]));
         var timer = new TestTimer();
         using var services = new ServiceCollection().AddMeetingRecorderPresentation()
             .AddSingleton(recorder.Object).AddSingleton(catalog.Object)
@@ -199,14 +203,32 @@ public sealed class RecorderViewModelTests
 
             model.Microphone.Should().Be(microphone);
             model.Output.Should().Be(output);
+            window.Icon.Should().NotBeNull();
+            Descendants(window).OfType<Image>().Single().Source.Should().NotBeNull();
+            var selector = Descendants(window).OfType<ComboBox>().Single(c => c.Items.Count == 2);
+            selector.IsDropDownOpen = true;
+            selector.UpdateLayout();
+            selector.ItemContainerGenerator.ContainerFromIndex(1).Should().BeOfType<ComboBoxItem>();
+            selector.SelectedIndex = 1;
+            selector.IsDropDownOpen = false;
+            model.Output.Should().Be(alternate);
             FindButton("Browse…").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             FindButton("Select folder").IsVisible.Should().BeTrue();
             var path = (TextBox)window.FindName("BrowserPath");
             path.Text = @"C:\Записи\Gespräche";
             FindButton("Select folder").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             model.Folder.Should().Be(path.Text);
-            state = RecorderState.Recording;
-            timer.Pulse();
+            recorder.Setup(r => r.StartAsync(new RecordingSettings("mic", "alt", model.Folder)))
+                .Callback(() => state = RecorderState.Recording).Returns(Task.CompletedTask);
+            recorder.Setup(r => r.PauseAsync()).Callback(() => state = RecorderState.Paused)
+                .Returns(Task.CompletedTask);
+            recorder.Setup(r => r.ResumeAsync()).Callback(() => state = RecorderState.Recording)
+                .Returns(Task.CompletedTask);
+            FindButton("Start recording").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            window.Title.Should().Contain("Recording");
+            FindButton("Pause").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            FindButton("Resume").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            model.Display.CanPause.Should().BeTrue();
             window.Close();
             FindButton("Finish and exit").IsVisible.Should().BeTrue();
             FindButton("Return to recorder").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -216,12 +238,22 @@ public sealed class RecorderViewModelTests
             FindButton("Finish and exit").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             window.IsVisible.Should().BeTrue();
             model.Display.Status.Should().Be("Error");
+            recorder.Setup(r => r.FinishAsync()).Callback(() => state = RecorderState.Saved)
+                .Returns(Task.CompletedTask);
+            FindButton("Start recording").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            FindButton("Pause").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            window.Close();
+            FindButton("Finish and exit").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            window.IsVisible.Should().BeFalse();
         }
         finally
         {
             state = RecorderState.Ready;
             timer.Pulse();
-            window.Close();
+            if (window.IsVisible)
+            {
+                window.Close();
+            }
         }
     }
 
@@ -233,6 +265,101 @@ public sealed class RecorderViewModelTests
             foreach (var child in Descendants(element))
             {
                 yield return child;
+            }
+        }
+    }
+
+    [Trait("Category", "Unit")]
+    [Theory(DisplayName = "A missing source is identified and prevents recording")]
+    [InlineData(false, false, "Microphone and computer audio")]
+    [InlineData(false, true, "Microphone unavailable")]
+    [InlineData(true, false, "Computer audio unavailable")]
+    public async Task MissingDeviceShouldDisableStart(bool hasMic, bool hasOutput, string notice)
+    {
+        var recorder = ReadyRecorder();
+        var device = new Endpoint("device", "USB", false);
+        var catalog = new Mock<IDeviceCatalog>(MockBehavior.Strict);
+        catalog.Setup(c => c.Read()).Returns(new Devices(hasMic ? [device] : [],
+            hasOutput ? [device] : []));
+        using var model = new RecorderViewModel(recorder.Object, catalog.Object,
+            new TestTimer(), new FolderLauncher());
+        await model.InitializeAsync();
+        model.CanStart.Should().BeFalse();
+        model.Display.Detail.Should().Contain(notice);
+        await model.StartAsync();
+        recorder.Verify(r => r.StartAsync(It.IsAny<RecordingSettings>()), Times.Never);
+    }
+
+    [Trait("Category", "Unit")]
+    [Fact(DisplayName = "A failed enumeration clears old endpoints and a refresh recovers")]
+    public async Task EnumerationFailureShouldAllowRefresh()
+    {
+        var recorder = ReadyRecorder();
+        var endpoint = new Endpoint("first", "First available", false);
+        var catalog = new Mock<IDeviceCatalog>(MockBehavior.Strict);
+        catalog.SetupSequence(c => c.Read())
+            .Returns(new Devices([endpoint], [endpoint]))
+            .Throws(new RecordingException("Windows audio is unavailable."))
+            .Returns(new Devices([endpoint], [endpoint]));
+        using var model = new RecorderViewModel(recorder.Object, catalog.Object,
+            new TestTimer(), new FolderLauncher());
+        await model.InitializeAsync();
+        model.CanStart.Should().BeTrue();
+        await model.RefreshDevicesAsync();
+        model.Microphones.Should().BeEmpty();
+        model.Output.Should().BeNull();
+        model.Display.Detail.Should().Be("Windows audio is unavailable.");
+        await model.RefreshDevicesAsync();
+        model.Display.Detail.Should().BeEmpty();
+        model.CanStart.Should().BeTrue();
+        model.Folder = " ";
+        model.CanStart.Should().BeFalse();
+    }
+
+    [Trait("Category", "Unit")]
+    [Fact(DisplayName = "Open folder uses the saved file and explains a missing directory")]
+    public void OpenFolderShouldReportShellFailure()
+    {
+        var recorder = ReadyRecorder();
+        var timer = new TestTimer();
+        var launcher = new TestLauncher();
+        using var model = new RecorderViewModel(recorder.Object,
+            new Mock<IDeviceCatalog>(MockBehavior.Strict).Object, timer, launcher);
+        model.OpenFolder();
+        launcher.Path.Should().BeNull();
+
+        const string FILE = @"C:\Записи\meeting.wav";
+        recorder.SetupGet(r => r.Snapshot).Returns(new RecorderSnapshot(RecorderState.Saved,
+            Result: new(FILE, 10, null, true)));
+        timer.Pulse();
+        model.OpenFolder();
+        launcher.Path.Should().Be(FILE);
+        launcher.Unavailable = true;
+        model.OpenFolder();
+        model.Display.Detail.Should().Contain("no longer available");
+        model.Display.File.Should().Be(FILE);
+    }
+
+    private static Mock<IRecorder> ReadyRecorder()
+    {
+        var recorder = new Mock<IRecorder>(MockBehavior.Strict);
+        recorder.SetupGet(r => r.Snapshot).Returns(new RecorderSnapshot(RecorderState.Ready));
+        recorder.SetupGet(r => r.Elapsed).Returns(TimeSpan.Zero);
+        recorder.SetupGet(r => r.Levels).Returns(default(Levels));
+        return recorder;
+    }
+
+    private sealed class TestLauncher : IFolderLauncher
+    {
+        internal string? Path { get; private set; }
+        internal bool Unavailable { get; set; }
+
+        public void Open(string file)
+        {
+            Path = file;
+            if (Unavailable)
+            {
+                throw new RecordingException("The recording folder is no longer available.");
             }
         }
     }

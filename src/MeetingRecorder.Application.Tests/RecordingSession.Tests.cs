@@ -134,6 +134,65 @@ public sealed class RecordingSessionTests : IDisposable
         _session.Verify(s => s.Dispose(), Times.Once);
     }
 
+    [Fact(DisplayName = "Unavailable commands leave the current session untouched")]
+    public async Task InvalidTransitionsShouldBeIdempotent()
+    {
+        await _recorder.PauseAsync();
+        await _recorder.ResumeAsync();
+        await _recorder.FinishAsync();
+        _recorder.Snapshot.State.Should().Be(RecorderState.Ready);
+        await _recorder.StartAsync(_settings);
+        _session.SetupGet(s => s.Levels).Returns(new Levels(0.1f, 0.25f));
+        _recorder.Levels.Should().Be(new Levels(0.1f, 0.25f));
+        await _recorder.StartAsync(_settings);
+        await _recorder.ResumeAsync();
+        await _recorder.PauseAsync();
+        await _recorder.PauseAsync();
+        await _recorder.StartAsync(_settings);
+        _factory.Verify(f => f.Open(_settings), Times.Once);
+        _session.Verify(s => s.BeginIntervalAsync(), Times.Once);
+        _session.Verify(s => s.EndIntervalAsync(It.IsAny<long>()), Times.Once);
+        _recorder.Snapshot.State.Should().Be(RecorderState.Paused);
+    }
+
+    [Fact(DisplayName = "An unavailable destination has no audio session to dispose")]
+    public async Task FileCreationFailureShouldReportNoOutput()
+    {
+        _factory.Setup(f => f.Open(_settings)).Throws(new RecordingException("Folder unavailable."));
+        await _recorder.StartAsync(_settings);
+        _recorder.Snapshot.State.Should().Be(RecorderState.Error);
+        _recorder.Snapshot.Result.Should().Be(new RecordingResult(null, 0, "Folder unavailable.", false));
+        _session.Verify(s => s.BeginIntervalAsync(), Times.Never);
+    }
+
+    [Fact(DisplayName = "A device failure while pausing publishes the available audio")]
+    public async Task PauseFailureShouldFinalizeInsteadOfEnteringPaused()
+    {
+        await _recorder.StartAsync(_settings);
+        _session.SetupGet(s => s.Problem).Returns("The microphone was disconnected.");
+        await _recorder.PauseAsync();
+        _recorder.Snapshot.State.Should().Be(RecorderState.Error);
+        _recorder.Snapshot.Result!.Published.Should().BeTrue();
+        _recorder.Snapshot.Result.Problem.Should().Contain("microphone");
+        _session.Verify(s => s.Dispose(), Times.Once);
+    }
+
+    [Fact(DisplayName = "A failed resume and failed publication report both causes and the recovery path")]
+    public async Task ResumeAndPublicationFailureShouldKeepBothErrors()
+    {
+        await _recorder.StartAsync(_settings);
+        await _recorder.PauseAsync();
+        _session.Setup(s => s.BeginIntervalAsync())
+            .ThrowsAsync(new RecordingException("Microphone disconnected."));
+        _session.Setup(s => s.CompleteAsync(false)).ReturnsAsync(
+            new RecordingResult("meeting.wav.partial", 8000, "WAV could not be published.", false));
+        await _recorder.ResumeAsync();
+        _recorder.Snapshot.State.Should().Be(RecorderState.Error);
+        _recorder.Snapshot.Result!.Problem.Should().Contain("Microphone disconnected.")
+            .And.Contain("WAV could not be published.");
+        _recorder.Snapshot.Result.Path.Should().Be("meeting.wav.partial");
+    }
+
     // WASAPI signals a synchronous EventHandler from the capture thread.
     private void RaiseDeviceFailure() =>
         _session.Raise(s => s.Interrupted += null, _session.Object, EventArgs.Empty);

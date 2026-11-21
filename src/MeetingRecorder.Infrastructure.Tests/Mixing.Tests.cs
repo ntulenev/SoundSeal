@@ -8,7 +8,6 @@ using MeetingRecorder.Infrastructure.Files;
 
 namespace MeetingRecorder.Infrastructure.Tests;
 
-[Trait("Category", "Unit")]
 public sealed class MixingTests : IDisposable
 {
     private static readonly InputFormat MIC = new(44100, 1, 16, false, 0);
@@ -16,6 +15,7 @@ public sealed class MixingTests : IDisposable
     private readonly DirectoryInfo _folder = Directory.CreateTempSubdirectory();
     private const long SECOND = TimeSpan.TicksPerSecond;
 
+    [Trait("Category", "Integration")]
     [Fact(DisplayName = "Twenty seconds without loopback preserve speech order and silence")]
     public void LatePlaybackShouldKeepItsTimestamp()
     {
@@ -34,6 +34,7 @@ public sealed class MixingTests : IDisposable
         Energy(samples, 0, 1000, 400).Should().BeGreaterThan(0.12);
     }
 
+    [Trait("Category", "Integration")]
     [Fact(DisplayName = "Separate post-gain meters and WAV frequencies follow both inputs")]
     public void MetersShouldDescribeExactlyTheWrittenSources()
     {
@@ -65,6 +66,7 @@ public sealed class MixingTests : IDisposable
         samples.Max(v => Math.Abs((int)v)).Should().BeLessThan(32000);
     }
 
+    [Trait("Category", "Integration")]
     [Fact(DisplayName = "Pause trims crossing packets and excludes the entire paused tone")]
     public void ResumeShouldAppendOnlyActiveSamples()
     {
@@ -87,6 +89,7 @@ public sealed class MixingTests : IDisposable
         samples.Skip(82000).Should().OnlyContain(v => v == 0);
     }
 
+    [Trait("Category", "Integration")]
     [Fact(DisplayName = "Packets crossing pause and resume boundaries are trimmed by sample time")]
     public void CrossingPacketsShouldExcludePauseOnlySignal()
     {
@@ -112,6 +115,7 @@ public sealed class MixingTests : IDisposable
         Energy(samples, 14400, 3200, 3000).Should().BeLessThan(0.002);
     }
 
+    [Trait("Category", "Unit")]
     [Fact(DisplayName = "Center dialogue survives channel-role downmix and LFE is excluded")]
     public void CenterShouldSurviveDownmix()
     {
@@ -124,6 +128,7 @@ public sealed class MixingTests : IDisposable
         format.Decode(bytes).Should().Be(0);
     }
 
+    [Trait("Category", "Unit")]
     [Fact(DisplayName = "One missing timestamp is extrapolated and repeated errors interrupt")]
     public void InvalidTimestampShouldHaveBoundedRecovery()
     {
@@ -135,6 +140,7 @@ public sealed class MixingTests : IDisposable
         act.Should().Throw<RecordingException>().WithMessage("*timestamps*");
     }
 
+    [Trait("Category", "Integration")]
     [Theory(DisplayName = "An hour with 100 ppm clock drift preserves paired marker timing")]
     [InlineData(44100, 48000)]
     [InlineData(48000, 44100)]
