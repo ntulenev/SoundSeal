@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.IO;
 using System.Windows;
 using System.Windows.Input;
 
@@ -12,15 +11,16 @@ namespace MeetingRecorder.Views;
 public partial class MainWindow : Window
 {
     private readonly RecorderViewModel _model;
-    private string? _location;
-    private int _navigation;
+    private readonly FolderBrowserViewModel _browser;
     private bool _finishingExit;
 
-    internal MainWindow(RecorderViewModel model)
+    internal MainWindow(RecorderViewModel model, FolderBrowserViewModel browser)
     {
         _model = model;
+        _browser = browser;
         InitializeComponent();
         DataContext = model;
+        FolderPanel.DataContext = browser;
     }
 
     private async void OnLoadedAsync(object sender, RoutedEventArgs e) => await _model.InitializeAsync();
@@ -74,7 +74,7 @@ public partial class MainWindow : Window
 
     private void HidePanel()
     {
-        _navigation++;
+        _browser.CancelNavigation();
         Overlay.Visibility = Visibility.Collapsed;
         RecorderSurface.IsEnabled = true;
     }
@@ -94,63 +94,21 @@ public partial class MainWindow : Window
     {
         ShowPanel(folder: true);
         _ = BrowserPath.Focus();
-        var current = _model.Folder;
-        while (!string.IsNullOrEmpty(current) && !Directory.Exists(current))
-        {
-            current = Path.GetDirectoryName(current);
-        }
-
-        await NavigateAsync(current);
+        await _browser.OpenAsync(_model.Folder);
     }
 
-    private async Task NavigateAsync(string? directory)
-    {
-        var request = ++_navigation;
-        FolderNotice.Text = string.Empty;
-        try
-        {
-            var path = string.IsNullOrWhiteSpace(directory) ? null : Path.GetFullPath(directory);
-            var entries = await Task.Run(() => path is null ? Directory.GetLogicalDrives()
-                : Directory.GetDirectories(path).Select(Path.GetFileName).Order(
-                    StringComparer.OrdinalIgnoreCase).ToArray());
-            if (request == _navigation)
-            {
-                _location = path;
-                BrowserPath.Text = path ?? string.Empty;
-                Folders.ItemsSource = entries;
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
-            or ArgumentException or NotSupportedException or System.Security.SecurityException)
-        {
-            if (request == _navigation)
-            {
-                FolderNotice.Text = "This folder could not be opened. Check the path and your access.";
-            }
-        }
-    }
+    private async void OnGoAsync(object sender, RoutedEventArgs e) => await _browser.GoAsync();
+    private async void OnUpAsync(object sender, RoutedEventArgs e) => await _browser.UpAsync();
 
-    private async void OnGoAsync(object sender, RoutedEventArgs e) => await NavigateAsync(BrowserPath.Text);
-    private async void OnUpAsync(object sender, RoutedEventArgs e) =>
-        await NavigateAsync(_location is null ? null : Path.GetDirectoryName(_location));
-
-    private string? SelectedPath() => Folders.SelectedItem is string name
-        ? Path.Combine(_location ?? string.Empty, name) : null;
-
-    private async void OnEnterFolderAsync(object sender, MouseButtonEventArgs e)
-    {
-        if (SelectedPath() is { } path)
-        {
-            await NavigateAsync(path);
-        }
-    }
+    private async void OnEnterFolderAsync(object sender, MouseButtonEventArgs e) =>
+        await _browser.EnterAsync();
 
     private async void OnFolderKeyAsync(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && SelectedPath() is { } path)
+        if (e.Key == Key.Enter && _browser.SelectedName is not null)
         {
             e.Handled = true;
-            await NavigateAsync(path);
+            await _browser.EnterAsync();
         }
     }
 
@@ -159,21 +117,16 @@ public partial class MainWindow : Window
         if (e.Key == Key.Enter)
         {
             e.Handled = true;
-            await NavigateAsync(BrowserPath.Text);
+            await _browser.GoAsync();
         }
     }
 
     private void OnChoose(object sender, RoutedEventArgs e)
     {
-        var path = BrowserPath.Text == (_location ?? string.Empty)
-            ? SelectedPath() ?? BrowserPath.Text : BrowserPath.Text;
-        if (!Path.IsPathFullyQualified(path))
+        if (_browser.Choose() is { } path)
         {
-            FolderNotice.Text = "Enter a full folder path or select a folder.";
-            return;
+            _model.Folder = path;
+            HidePanel();
         }
-
-        _model.Folder = path;
-        HidePanel();
     }
 }

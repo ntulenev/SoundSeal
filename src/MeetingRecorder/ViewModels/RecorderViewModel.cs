@@ -13,6 +13,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     private readonly IRecorder _recorder;
     private readonly IDeviceCatalog _devices;
     private readonly IUiTimer _timer;
+    private readonly IFolderLauncher _folders;
     private string _folder = Path.Combine(Environment.GetFolderPath(
         Environment.SpecialFolder.LocalApplicationData), "MeetingRecorder", "Recordings");
     private Endpoint? _microphone;
@@ -21,11 +22,13 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     private RecorderDisplay _display;
     private bool _refreshing;
 
-    public RecorderViewModel(IRecorder recorder, IDeviceCatalog devices, IUiTimer timer)
+    public RecorderViewModel(IRecorder recorder, IDeviceCatalog devices, IUiTimer timer,
+        IFolderLauncher folders)
     {
         _recorder = recorder;
         _devices = devices;
         _timer = timer;
+        _folders = folders;
         _display = ReadDisplay();
         _timer.Tick += OnTick;
     }
@@ -157,7 +160,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
 
         try
         {
-            FolderLauncher.Open(path);
+            _folders.Open(path);
         }
         catch (RecordingException ex)
         {
