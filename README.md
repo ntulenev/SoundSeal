@@ -10,6 +10,8 @@ SoundSeal records your microphone and the audio you hear in an online meeting in
 | --- | --- |
 | [![SoundSeal ready to record, with selectors for the microphone, playback device, and recording folder](docs/screenshots/ready.png)](docs/screenshots/ready.png) | [![SoundSeal recording, with the elapsed time and active signal meters for both audio sources](docs/screenshots/recording.png)](docs/screenshots/recording.png) |
 
+[View the saved recording and its **Copy link** button](docs/screenshots/saved.png)
+
 ## Build and run
 
 Install the **.NET 10 SDK for x64** and run these commands in PowerShell from the repository root. The first restore requires access to NuGet or a local cache containing the required packages.
@@ -29,7 +31,7 @@ After building, you can launch `src\MeetingRecorder\bin\Release\net10.0-windows\
 2. Check **Recording folder**. The default is `%LOCALAPPDATA%\MeetingRecorder\Recordings`. Enter a path or click **Browse…** to choose a folder. SoundSeal creates the folder when recording starts if it doesn't already exist.
 3. Click **Start recording**. A red dot and the **Recording** status indicate that recording is in progress. Speak into the microphone, then check the other meter when someone on the call speaks. Each meter shows **Signal detected** or **Silent**. **Elapsed time** keeps counting during silence.
 4. Click **Pause** to leave a break out of the file. Both meters show **Paused** and the timer stops. Click **Resume** to continue recording to the same file.
-5. Click **Finish recording**. When the status changes to **Saved**, the window shows the duration and full file path. **Open folder** opens the recording folder in File Explorer. If you close the window during a recording, choose **Finish and exit** to save it or **Return to recorder** to keep the session open.
+5. Click **Finish recording**. When the status changes to **Saved**, the window shows the duration and full file path. Click **Copy link** beside the path to copy a `file://` link to the WAV, or **Open folder** to find it in File Explorer. Anyone using the link needs access to the same file location. If you close the window during a recording, choose **Finish and exit** to save it or **Return to recorder** to keep the session open.
 
 SoundSeal saves one mono track as 16-bit PCM audio at 16,000 Hz. One hour of active recording uses about 115.2 MB. Filenames include the start time, for example `Meeting-2026-11-21_14-35-08.wav`. If a name is already in use, SoundSeal adds a numeric suffix.
 

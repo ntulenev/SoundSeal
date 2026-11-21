@@ -17,6 +17,7 @@ internal static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         return services.AddSingleton<IUiTimer, UiTimer>()
+            .AddSingleton(_ => new RecordingLinkClipboard(System.Windows.Clipboard.SetText))
             .AddSingleton<IFolderLauncher, FolderLauncher>()
             .AddSingleton<IFolderCatalog, FolderCatalog>()
             .AddSingleton<FolderBrowserViewModel>()
