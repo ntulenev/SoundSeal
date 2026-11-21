@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="MeetingRecorder.Domain/MeetingRecorder.Domain.csproj" />
+  <Project Path="MeetingRecorder.Domain.Tests/MeetingRecorder.Domain.Tests.csproj" />
+  <Project Path="MeetingRecorder.Application/MeetingRecorder.Application.csproj" />
+  <Project Path="MeetingRecorder.Application.Tests/MeetingRecorder.Application.Tests.csproj" />
+  <Project Path="MeetingRecorder.Infrastructure/MeetingRecorder.Infrastructure.csproj" />
+  <Project Path="MeetingRecorder.Infrastructure.Tests/MeetingRecorder.Infrastructure.Tests.csproj" />
+  <Project Path="MeetingRecorder/MeetingRecorder.csproj" />
+  <Project Path="MeetingRecorder.Tests/MeetingRecorder.Tests.csproj" />
+</Solution>
