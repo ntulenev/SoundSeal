@@ -90,6 +90,8 @@ Click **Open folder** and select the WAV in your transcription tool. For a split
 
 ## Testing
 
+During a **Google Meet** call on Windows, we collected packet timing for both the microphone and playback on a **Sony WH-1000XM5** Bluetooth headset. SoundSeal 3.1.5 processed all 2,799 packet headers from two runs. A separate test used synthetic audio to verify that the saved meeting WAV contained both the microphone and computer audio.
+
 Unit tests exercise individual components. Integration tests exercise capture queues, the file system, dependency injection, and the WPF window. To run either category from the repository root, use the corresponding command.
 
 ```powershell
