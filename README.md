@@ -16,7 +16,33 @@ SoundSeal is a simple offline Windows recorder for meetings, audio streams and v
 | --- | --- |
 | [![SoundSeal ready to record, with selectors for the microphone, playback device, and recording folder](docs/screenshots/ready.png)](docs/screenshots/ready.png) | [![SoundSeal recording, with the elapsed time and active signal meters for both audio sources](docs/screenshots/recording.png)](docs/screenshots/recording.png) |
 
-[Computer audio mode](docs/screenshots/computer-audio.png) · [Dictaphone mode](docs/screenshots/dictaphone.png) · [View a saved recording](docs/screenshots/saved.png) · [View the scrollable list of saved parts](docs/screenshots/parts.png)
+<details>
+<summary>Computer audio — playback only</summary>
+
+![Computer audio mode with the playback device selected and the microphone off](docs/screenshots/computer-audio.png)
+
+</details>
+
+<details>
+<summary>Dictaphone — microphone only</summary>
+
+![Dictaphone mode with the microphone selected and computer audio off](docs/screenshots/dictaphone.png)
+
+</details>
+
+<details>
+<summary>Saved recording</summary>
+
+![A saved WAV with its file path and Copy link button](docs/screenshots/saved.png)
+
+</details>
+
+<details>
+<summary>Recording saved in 15-minute parts</summary>
+
+![A scrollable list of 20 WAV files, each with its own Copy link button](docs/screenshots/parts.png)
+
+</details>
 
 ## Build and run
 
