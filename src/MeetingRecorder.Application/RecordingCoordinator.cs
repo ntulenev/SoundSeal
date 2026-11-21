@@ -173,7 +173,15 @@ public sealed class RecordingCoordinator : IRecorder, IDisposable
             try
             {
                 result = await session.CompleteAsync(discardEmpty).ConfigureAwait(false);
-                result = result with { Problem = result.Problem ?? problem };
+                // The writer can report its own error even when reopening a device failed.
+                if (problem is not null && (result.Problem is null ||
+                    !result.Problem.StartsWith(problem, StringComparison.Ordinal)))
+                {
+                    result = result with
+                    {
+                        Problem = result.Problem is null ? problem : problem + " " + result.Problem
+                    };
+                }
             }
             finally
             {

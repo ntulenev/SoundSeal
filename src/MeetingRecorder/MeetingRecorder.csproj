@@ -8,7 +8,7 @@
     <OutputType>WinExe</OutputType>
     <AssemblyName>SoundSeal</AssemblyName>
     <Product>SoundSeal</Product>
-    <Version>1.1.1</Version>
+    <Version>1.1.2</Version>
     <ApplicationIcon>Assets\SoundSeal.ico</ApplicationIcon>
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>

@@ -35,6 +35,11 @@ internal sealed class WasapiPacketPump
             byte[] bytes;
             try
             {
+                if (frames < 0 || frames > Array.MaxLength / _format.Stride)
+                {
+                    throw new RecordingException("The audio device returned an invalid capture buffer.");
+                }
+
                 bytes = flags.HasFlag(AudioClientBufferFlags.Silent)
                     ? [] : CopyFrames(pointer, frames);
             }
@@ -51,7 +56,7 @@ internal sealed class WasapiPacketPump
 
     private byte[] CopyFrames(nint pointer, int frames)
     {
-        if (pointer == 0 || frames < 0 || frames > Array.MaxLength / _format.Stride)
+        if (pointer == 0)
         {
             throw new RecordingException("The audio device returned an invalid capture buffer.");
         }
