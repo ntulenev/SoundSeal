@@ -1,18 +1,18 @@
 # SoundSeal
 
-<img src="src/MeetingRecorder/Assets/SoundSeal.png" width="120" height="120" alt="Тюлень SoundSeal в тёмных очках и бирюзовых наушниках">
+<img src="src/MeetingRecorder/Assets/SoundSeal.png" width="120" height="120" alt="The SoundSeal seal wearing dark sunglasses and turquoise headphones">
 
-SoundSeal записывает голос с микрофона и звук онлайн-встречи в один локальный WAV-файл. Приложение работает в Windows 11 x64 без интернета. Запись начинается по нажатию **Start recording**. Готовый файл можно самостоятельно передать в сервис расшифровки.
+SoundSeal records your microphone and the audio you hear in an online meeting into a single WAV file on your computer. It runs offline on Windows 11 x64. Click **Start recording** when you're ready. After the meeting, you can send the saved file to a transcription service of your choice.
 
-## Скриншоты
+## Screenshots
 
-| Выбор источников звука | Запись встречи |
+| Choose audio sources | Record a meeting |
 | --- | --- |
-| [![Окно SoundSeal перед записью с выбором микрофона, устройства вывода и папки](docs/screenshots/ready.png)](docs/screenshots/ready.png) | [![Окно SoundSeal во время записи с таймером и индикаторами сигнала обоих источников](docs/screenshots/recording.png)](docs/screenshots/recording.png) |
+| [![SoundSeal ready to record, with selectors for the microphone, playback device, and recording folder](docs/screenshots/ready.png)](docs/screenshots/ready.png) | [![SoundSeal recording, with the elapsed time and active signal meters for both audio sources](docs/screenshots/recording.png)](docs/screenshots/recording.png) |
 
-## Сборка и запуск
+## Build and run
 
-Для сборки нужен **.NET 10 SDK x64**. Эти команды выполняются в PowerShell из корня репозитория.
+Install the **.NET 10 SDK for x64** and run these commands in PowerShell from the repository root. The first restore requires access to NuGet or a local cache containing the required packages.
 
 ```powershell
 dotnet restore .\src\MeetingRecorder.slnx
@@ -21,51 +21,51 @@ dotnet test .\src\MeetingRecorder.slnx -c Release --no-build
 dotnet run --project .\src\MeetingRecorder\MeetingRecorder.csproj -c Release --no-build
 ```
 
-После сборки можно запускать `src\MeetingRecorder\bin\Release\net10.0-windows\SoundSeal.exe`. Для запуска этой сборки на другом компьютере скопируйте весь каталог вывода и установите **.NET Desktop Runtime 10 x64**. Для первого восстановления пакетов нужен доступ к NuGet или заполненный локальный кэш.
+After building, you can launch `src\MeetingRecorder\bin\Release\net10.0-windows\SoundSeal.exe` directly. To run the build on another computer, copy the entire output directory and install the **.NET 10 Desktop Runtime for x64** there.
 
-## Запись встречи
+## Record a meeting
 
-1. В поле **Microphone** выберите микрофон. В **Computer audio** выберите наушники или динамики, через которые слышите собеседников. При запуске SoundSeal выбирает устройства Windows по умолчанию. На время записи приложение закрепляет выбранные устройства, в том числе на период паузы.
-2. Проверьте **Recording folder**. По умолчанию записи сохраняются в `%LOCALAPPDATA%\MeetingRecorder\Recordings`. Путь можно ввести вручную или выбрать через **Browse…**. Новую папку приложение создаст при старте записи.
-3. Нажмите **Start recording**. Красная точка и статус **Recording** показывают, что запись идёт. Скажите несколько слов и дождитесь реплики собеседника. У каждого источника есть своя шкала с пометкой **Signal detected** или **Silent**. Счётчик **Elapsed time** идёт и во время тишины.
-4. Нажмите **Pause**, чтобы исключить перерыв из файла. Обе шкалы покажут **Paused**, счётчик остановится. **Resume** продолжит тот же файл.
-5. Нажмите **Finish recording**. Когда появится **Saved**, окно покажет длительность и полный путь. **Open folder** откроет папку в Проводнике. При закрытии активной записи выберите **Finish and exit** для сохранения или **Return to recorder** для возврата.
+1. Under **Microphone**, choose your input device. Under **Computer audio**, choose the headphones or speakers you use to hear the other participants. SoundSeal initially selects the Windows defaults and keeps your selected devices for the entire recording, including pauses.
+2. Check **Recording folder**. The default is `%LOCALAPPDATA%\MeetingRecorder\Recordings`. Enter a path or click **Browse…** to choose a folder. SoundSeal creates the folder when recording starts if it doesn't already exist.
+3. Click **Start recording**. A red dot and the **Recording** status indicate that recording is in progress. Speak into the microphone, then check the other meter when someone on the call speaks. Each meter shows **Signal detected** or **Silent**. **Elapsed time** keeps counting during silence.
+4. Click **Pause** to leave a break out of the file. Both meters show **Paused** and the timer stops. Click **Resume** to continue recording to the same file.
+5. Click **Finish recording**. When the status changes to **Saved**, the window shows the duration and full file path. **Open folder** opens the recording folder in File Explorer. If you close the window during a recording, choose **Finish and exit** to save it or **Return to recorder** to keep the session open.
 
-Файл вида `Meeting-2026-11-21_14-35-08.wav` содержит одну монофоническую дорожку PCM16, 16 000 Гц. Час активной записи занимает около 115,2 МБ. При совпадении имён SoundSeal добавляет числовой суффикс.
+SoundSeal saves one mono track as 16-bit PCM audio at 16,000 Hz. One hour of active recording uses about 115.2 MB. Filenames include the start time, for example `Meeting-2026-11-21_14-35-08.wav`. If a name is already in use, SoundSeal adds a numeric suffix.
 
-## Если источник молчит или запись прервалась
+## Troubleshooting
 
-| Что видно в окне | Что проверить |
+| What you see or hear | What to check |
 | --- | --- |
-| **Microphone** остаётся **Silent** во время речи | Проверьте выбор входа, аппаратную кнопку отключения микрофона, уровень входа и разрешение Windows для классических приложений в разделе конфиденциальности «Микрофон». |
-| **Computer audio** остаётся **Silent** во время реплики | Сверьте выбранный выход с настройками звука приложения для звонков. SoundSeal захватывает общий микс этого выхода через WASAPI loopback, включая браузер и уведомления. Защищённое содержимое и приложения в монопольном режиме могут быть недоступны. |
-| Устройство отсутствует или занято | Подключите устройство, освободите его в приложении с монопольным доступом и нажмите **Refresh devices**. |
-| Голос собеседника слышен дважды | Звук из динамиков может попадать в микрофон. Гарнитура уменьшает акустическое эхо. |
-| **Error** после отключения устройства или перегрузки | Прочитайте сообщение под папкой записи. Если доступную часть удалось сохранить, там появится путь к WAV. Для следующей записи проверьте устройства и нажмите **Start recording**. |
-| Ошибка диска или финализации | Проверьте свободное место и доступ к папке. Если сохранился незавершённый файл, окно покажет путь к `.wav.partial`. Такой файл может содержать аудиоданные с незаполненным заголовком. |
+| **Microphone** stays **Silent** while you speak | Check the selected input, the microphone's hardware mute switch, and the Windows input level. In Windows microphone privacy settings, allow desktop apps to access the microphone. |
+| **Computer audio** stays **Silent** while someone else speaks | Check that the calling app uses the playback device selected in SoundSeal. WASAPI loopback captures the shared mix on that device, including browser audio and notifications. Protected content and apps using exclusive mode may be unavailable for capture. |
+| A device is missing or busy | Connect the device or close the app using it in exclusive mode, then click **Refresh devices**. |
+| You hear the other participant twice in the recording | Sound from the speakers can reach the microphone. A headset reduces this echo. |
+| **Error** appears after a device disconnects or the recorder is overloaded | Read the message below **Recording folder**. If SoundSeal saved part of the recording, the message shows the WAV file path. Check the devices before clicking **Start recording** again. |
+| A disk error occurs or SoundSeal cannot finish writing the file | Check free disk space and write access to the folder. If SoundSeal kept an unfinished file, the window shows its `.wav.partial` path. It may contain audio data with an incomplete WAV header. |
 
-## Проверки
+## Testing
 
-Тесты разделены на две категории. Модульные проверяют решения отдельных компонентов, интеграционные проходят через реальные очереди захвата, файловую систему, контейнер зависимостей или окно WPF. Для раздельного запуска из корня репозитория используйте
+Unit tests exercise individual components. Integration tests exercise capture queues, the file system, dependency injection, and the WPF window. To run either category from the repository root, use the corresponding command.
 
 ```powershell
 dotnet test .\src\MeetingRecorder.slnx -c Release --filter Category=Unit
 dotnet test .\src\MeetingRecorder.slnx -c Release --filter Category=Integration
 ```
 
-Для отчёта по покрытым строкам и ветвям запустите `./scripts/Test-Coverage.ps1` в PowerShell 7. Скрипт запускает весь набор в Release, объединяет результаты Coverlet из четырёх тестовых процессов и показывает долю покрытия каждого рабочего модуля. Исходные JSON-отчёты сохраняются в отдельном каталоге внутри `TestResults`.
+For line and branch coverage, run `./scripts/Test-Coverage.ps1` in PowerShell 7. The script runs the full suite in Release, merges Coverlet results from all four test projects, and reports coverage for each application module. It saves the raw JSON reports in a separate directory under `TestResults`.
 
-Четыре тестовых проекта проверяют состояния, таймер, окно WPF, смешивание синтетических источников и содержимое сохранённых WAV. В тестах часового дрейфа моделируются часы устройств на 44,1 и 48 кГц с относительным расхождением 100 ppm. Для тестов после восстановления зависимостей звуковая карта и сеть не требуются.
+The four test projects cover recorder states, timing, the WPF window, mixing synthetic audio sources, and the contents of saved WAV files. The clock-drift tests simulate 44.1 kHz and 48 kHz devices with 100 ppm of relative drift over an hour. Once the dependencies are restored, the tests can run offline without a sound card.
 
-Для аппаратной приёмки запишите обе стороны разговора, выберите альтернативный выход, сделайте паузу и прослушайте результат. В отдельной короткой записи отключите выбранную гарнитуру и откройте сохранённый фрагмент. Для часового звонка сравните начало и конец записи и длительность WAV с таймером. Короткую запись можно повторить при отключённой сети.
+To check real hardware, record both sides of a call, try a different playback device, pause and resume, then listen to the result. In a separate short recording, disconnect the selected headset and play the saved segment. For an hour-long call, check the start and end of the audio and compare the WAV duration with the recorder's timer. You can also repeat a short recording offline.
 
-## Структура решения
+## Solution structure
 
-За ориентир взят DayScope, ревизия `c9d9845`. Решения используют одинаковые базовые `.editorconfig` и `Directory.Build.props`, Generic Host для сборки зависимостей и отдельный тестовый проект для каждого слоя.
+The solution follows the conventions of DayScope at commit `c9d9845`. Both projects share baseline `.editorconfig` and `Directory.Build.props` settings, use the .NET Generic Host for dependency injection, and have a test project for each layer.
 
-| Проект | Где искать изменения |
+| Project | Responsibilities |
 | --- | --- |
-| `MeetingRecorder.Domain` | Формат, интервалы, состояния и результаты записи. Проект автономен. |
-| `MeetingRecorder.Application` | Координатор переходов и контракты в `Abstractions`. Слой зависит только от Domain. |
-| `MeetingRecorder.Infrastructure` | В `Wasapi` адаптеры NAudio получают пакет и освобождают нативный буфер. В `Audio` рабочая очередь получает собственную копию, выравнивает дорожки и передаёт PCM в `Files`. |
-| `MeetingRecorder` | Окна и события WPF находятся в `Views`, состояние записи и навигации по папкам — в `ViewModels`, работа с файловой системой и Проводником — в `Platform`. Цвета и стили собраны в `Themes`. |
+| `MeetingRecorder.Domain` | Defines the recording format, time intervals, recorder states, and results. It has no dependencies on other solution projects. |
+| `MeetingRecorder.Application` | Coordinates recorder state transitions and defines contracts in `Abstractions`. It depends only on the domain layer. |
+| `MeetingRecorder.Infrastructure` | NAudio adapters in `Wasapi` read packets and release the native buffers. The worker queue in `Audio` processes copies, aligns the tracks, and sends PCM samples to the writer in `Files`. |
+| `MeetingRecorder` | `Views` contains WPF windows and event handlers. `ViewModels` manages recording and folder navigation. `Platform` handles file system and File Explorer access. `Themes` defines colors and styles. |

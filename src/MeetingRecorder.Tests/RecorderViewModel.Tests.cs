@@ -32,9 +32,9 @@ public sealed class RecorderViewModelTests
         recorder.SetupGet(r => r.Snapshot).Returns(() => snapshot);
         recorder.SetupGet(r => r.Elapsed).Returns(() => elapsed);
         recorder.SetupGet(r => r.Levels).Returns(() => levels);
-        var mic = new Endpoint("mic", "Микрофон", true);
-        var output = new Endpoint("out", "Kopfhörer", false);
-        var defaultOut = new Endpoint("other", "Lautsprecher", true);
+        var mic = new Endpoint("mic", "Microphone", true);
+        var output = new Endpoint("out", "Headphones", false);
+        var defaultOut = new Endpoint("other", "Speakers", true);
         var catalog = new Mock<IDeviceCatalog>(MockBehavior.Strict);
         catalog.Setup(c => c.Read()).Returns(new Devices([mic], [output, defaultOut]));
         var timer = new TestTimer();
@@ -43,7 +43,7 @@ public sealed class RecorderViewModelTests
         await model.InitializeAsync();
         model.Output.Should().Be(defaultOut);
         model.Output = output;
-        model.Folder = @"C:\Записи";
+        model.Folder = @"C:\Recordings";
         await model.RefreshDevicesAsync();
         model.Output.Should().Be(output);
         model.CanStart.Should().BeTrue();
@@ -76,10 +76,10 @@ public sealed class RecorderViewModelTests
         await model.TogglePauseAsync();
         model.Display.CanPause.Should().BeTrue();
         recorder.Setup(r => r.FinishAsync()).Callback(() => snapshot = new(RecorderState.Saved,
-            Result: new(@"C:\Записи\声.wav", 1040000, null, true))).Returns(Task.CompletedTask);
+            Result: new(@"C:\Recordings\Voice 🎙.wav", 1040000, null, true))).Returns(Task.CompletedTask);
         await model.FinishAsync();
 
-        model.Display.File.Should().Be(@"C:\Записи\声.wav");
+        model.Display.File.Should().Be(@"C:\Recordings\Voice 🎙.wav");
         model.Display.Elapsed.Should().Be("00:01:05");
         model.CanStart.Should().BeTrue();
     }
@@ -113,8 +113,8 @@ public sealed class RecorderViewModelTests
 
     [Trait("Category", "Unit")]
     [Theory(DisplayName = "Errors distinguish saved, unfinished and missing audio")]
-    [InlineData(true, "unterwegs.wav", "Available audio saved.")]
-    [InlineData(false, "unterwegs.partial", "Unfinished file retained.")]
+    [InlineData(true, "meeting.wav", "Available audio saved.")]
+    [InlineData(false, "meeting.wav.partial", "Unfinished file retained.")]
     [InlineData(false, null, "No recording file was saved.")]
     public void ErrorShouldShowFileOutcome(bool published, string? path, string outcome)
     {
@@ -153,8 +153,8 @@ public sealed class RecorderViewModelTests
         recorder.SetupGet(r => r.Elapsed).Returns(TimeSpan.Zero);
         recorder.SetupGet(r => r.Levels).Returns(default(Levels));
         var catalog = new Mock<IDeviceCatalog>(MockBehavior.Strict);
-        var microphone = new Endpoint("mic", "Mikrofon (USB-Konferenzsystem)", true);
-        var output = new Endpoint("out", "Наушники (HP USB-C Dock Audio Headset)", true);
+        var microphone = new Endpoint("mic", "Microphone (USB Conference System)", true);
+        var output = new Endpoint("out", "Headphones – HP USB-C Dock Audio Headset", true);
         var alternate = new Endpoint("alt", "Alternate output", false);
         catalog.Setup(c => c.Read()).Returns(new Devices([microphone], [output, alternate]));
         var timer = new TestTimer();
@@ -215,7 +215,7 @@ public sealed class RecorderViewModelTests
             FindButton("Browse…").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             FindButton("Select folder").IsVisible.Should().BeTrue();
             var path = (TextBox)window.FindName("BrowserPath");
-            path.Text = @"C:\Записи\Gespräche";
+            path.Text = @"C:\Recordings\Team’s meetings";
             FindButton("Select folder").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             model.Folder.Should().Be(path.Text);
             recorder.Setup(r => r.StartAsync(new RecordingSettings("mic", "alt", model.Folder)))
@@ -328,7 +328,7 @@ public sealed class RecorderViewModelTests
         model.OpenFolder();
         launcher.Path.Should().BeNull();
 
-        const string FILE = @"C:\Записи\meeting.wav";
+        const string FILE = @"C:\Recordings\meeting.wav";
         recorder.SetupGet(r => r.Snapshot).Returns(new RecorderSnapshot(RecorderState.Saved,
             Result: new(FILE, 10, null, true)));
         timer.Pulse();

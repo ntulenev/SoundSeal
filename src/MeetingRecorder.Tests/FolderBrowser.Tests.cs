@@ -17,7 +17,7 @@ public sealed class FolderBrowserTests
         var folder = Directory.CreateTempSubdirectory();
         try
         {
-            var child = folder.CreateSubdirectory("Январь");
+            var child = folder.CreateSubdirectory("January – planning");
             var model = new FolderBrowserViewModel(new FolderCatalog());
             await model.OpenAsync(Path.Combine(folder.FullName, "missing", "nested"));
             model.PathText.Should().Be(folder.FullName);
