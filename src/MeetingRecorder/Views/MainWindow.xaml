@@ -23,7 +23,7 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Image Source="/SoundSeal;component/Assets/SoundSeal.png" Width="40" Height="40"
                                SnapsToDevicePixels="True" UseLayoutRounding="True"
-                               RenderOptions.BitmapScalingMode="NearestNeighbor" AutomationProperties.Name="SoundSeal seal with headphones"/>
+                               RenderOptions.BitmapScalingMode="NearestNeighbor" AutomationProperties.Name="SoundSeal seal wearing dark sunglasses and headphones"/>
                         <TextBlock Margin="9,0" VerticalAlignment="Center" Text="SoundSeal" FontSize="22" FontWeight="Bold"/>
                     </StackPanel>
                 </DockPanel>
