@@ -1,4 +1,5 @@
 using System.IO;
+using System.Windows;
 
 using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
@@ -119,8 +120,8 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     /// <summary>Latest display values for this window.</summary>
     public RecorderDisplay Display => _display;
 
-    /// <summary>Feedback from the last attempt to copy a recording link.</summary>
-    public string CopyLinkStatus {
+    /// <summary>Feedback from copying a link or dragging a published WAV.</summary>
+    public string FileActionStatus {
         get;
         private set => SetProperty(ref field, value);
     } = string.Empty;
@@ -190,7 +191,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         }
 
         _notice = string.Empty;
-        CopyLinkStatus = string.Empty;
+        FileActionStatus = string.Empty;
         return ShowTransitionAsync(_recorder.StartAsync(new(Microphone?.Id, Output?.Id, Folder, Mode,
             SplitRecording ? RecordingLayout.QuarterHourParts : RecordingLayout.SingleFile), cancellationToken), cancellationToken);
     }
@@ -225,12 +226,44 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         try
         {
             _clipboard.Copy(file);
-            CopyLinkStatus = "Link copied.";
+            FileActionStatus = "Link copied.";
         }
         catch (RecordingException ex)
         {
-            CopyLinkStatus = ex.Message;
+            FileActionStatus = ex.Message;
         }
+    }
+
+    /// <summary>Creates a copy-only shell file list from the current published files, in recording order.</summary>
+    internal DataObject? CreateDragData(RecordingFile? part)
+    {
+        IReadOnlyList<RecordingFile> files = Display.Files;
+        if (part is not null)
+        {
+            if (!files.Contains(part))
+            {
+                return null;
+            }
+            files = [part];
+        }
+        if (files.Count == 0)
+        {
+            return null;
+        }
+
+        var paths = new string[files.Count];
+        for (var i = 0; i < files.Count; i++)
+        {
+            var file = files[i];
+            if (!File.Exists(file.Value))
+            {
+                FileActionStatus = $"Cannot drag the recording. File unavailable: {file.Name}";
+                return null;
+            }
+            paths[i] = file.Value;
+        }
+        FileActionStatus = string.Empty;
+        return new DataObject(DataFormats.FileDrop, paths);
     }
 
     /// <summary>Opens the folder containing the published or recoverable file.</summary>

@@ -83,7 +83,9 @@ SoundSeal saves one mono track as 16-bit PCM audio at 16,000 Hz. One hour of act
 
 ## Transcribe and summarize
 
-Click **Open folder** and select the WAV in your transcription tool. For a split recording, submit the files in part-number order, then ask the AI to summarize the combined transcript. For a meeting, you can ask it to list decisions, action items and open questions. **Copy link** copies a local file URI suitable for an application with access to that folder. Use the WAV upload option for a web service.
+After finishing, drag the file path or **Drag WAV** from SoundSeal into your transcription tool’s upload area. For a split meeting, drag **Drag all parts** to pass every saved WAV in part-number order in one gesture, or drag a part by its filename to upload it individually. The destination must accept file drops and support multiple files for a batch. You can also drop the files into a File Explorer folder to copy them. The original WAVs stay in the recording folder.
+
+If the tool uses a file picker, click **Open folder** and select the WAV files there. For a split meeting, ask the AI to summarize the combined transcript. For a meeting, you can ask it to list decisions, action items and open questions. **Copy link** copies a local file URI suitable for an application with access to that folder. Use the WAV upload option for a web service.
 
 ## Troubleshooting
 
