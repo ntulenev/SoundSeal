@@ -46,6 +46,7 @@ public sealed partial class RecorderViewModelTests
         catalog.Setup(c => c.ReadAsync(It.Is<CancellationToken>(t => t.CanBeCanceled))).ReturnsAsync(new Devices([], []));
         var timer = new TestTimer();
         using var services = new ServiceCollection().AddMeetingRecorderPresentation()
+            .AddSingleton(Mock.Of<ISoundCheck>())
             .AddSingleton(recorder.Object).AddSingleton(catalog.Object).AddSingleton<IUiTimer>(timer).BuildServiceProvider();
         var window = services.GetRequiredService<MainWindow>();
         var model = services.GetRequiredService<RecorderViewModel>();

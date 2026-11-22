@@ -159,7 +159,7 @@ public sealed class CaptureSessionTests : IDisposable
             var fault = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             using var mic = new TestEndpoint();
             using var output = new TestEndpoint();
-            var interval = new CaptureInterval(new("mic", "out", _folder.FullName), _clock,
+            var interval = new CaptureInterval("mic", "out", _clock,
                 (_, loopback) => loopback ? output : mic, file,
                 _ => stalled.Wait(TimeSpan.FromSeconds(3)), message => fault.TrySetResult(message.Message), 1, cancellationToken);
             await interval.Started;
@@ -537,6 +537,63 @@ public sealed class CaptureSessionTests : IDisposable
         Assert.Equal(2, opens);
         Assert.Equal(20, result.Frames.Value);
         Assert.Equal(3, result.PublishedFiles.Count);
+    });
+
+    /// <summary>Each preflight mode uses only its selected endpoints and returns five seconds of mixed PCM.</summary>
+    [Trait("Category", "Integration")]
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public Task SoundCheckShouldCaptureSelectedSources(bool hasMic, bool hasOutput) => TestDeadline.Run(async token =>
+    {
+        long ticks = -TimeSpan.TicksPerMillisecond * 50;
+        var clock = new Mock<IRecordingClock>();
+        clock.SetupGet(c => c.Now).Returns(() => Interlocked.Add(ref ticks, TimeSpan.TicksPerMillisecond * 50));
+        using var mic = new TestEndpoint { NextPacket = MixingTests.Tone(false, 0, 0, 0.1, 440) };
+        using var output = new TestEndpoint { NextPacket = MixingTests.Tone(true, 0, 0, 0.1, 880) };
+        var tone = new Mock<Func<EndpointId, CancellationToken, Task>>();
+        tone.Setup(play => play("headphones", token)).Returns(Task.CompletedTask);
+        var check = new SoundCheck(clock.Object, (id, loopback) =>
+        {
+            Assert.Equal(loopback ? "headphones" : "usb-mic", id.Value);
+            return loopback ? output : mic;
+        }, tone.Object, 512);
+        var levels = new Levels();
+        var progress = new Mock<IProgress<Levels>>();
+        progress.Setup(p => p.Report(It.IsAny<Levels>())).Callback<Levels>(value => levels = value);
+        var sample = await check.CaptureAsync(hasMic ? new EndpointId("usb-mic") : null,
+            hasOutput ? new EndpointId("headphones") : null, progress.Object, token);
+
+        Assert.Equal(5 * RecordingFormat.SampleRate * sizeof(short), sample.Length);
+        Assert.Contains(sample, value => value != 0);
+        Assert.Equal(hasMic, levels.Microphone.Value > 0);
+        Assert.Equal(hasOutput, levels.Computer.Value > 0);
+        Assert.Equal(hasMic, mic.Disposed);
+        Assert.Equal(hasOutput, output.Disposed);
+        tone.Verify(play => play("headphones", token), hasOutput ? Times.Once : Times.Never);
+        Assert.Empty(_folder.GetFiles());
+    });
+
+    /// <summary>Closing during the tone releases both capture devices before returning to the recorder.</summary>
+    [Trait("Category", "Integration")]
+    [Fact]
+    public Task CanceledSoundCheckShouldReleaseDevices() => TestDeadline.Run(async token =>
+    {
+        using var mic = new TestEndpoint();
+        using var output = new TestEndpoint();
+        using var cancel = CancellationTokenSource.CreateLinkedTokenSource(token);
+        var playing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var check = new SoundCheck(_clock, (_, loopback) => loopback ? output : mic, (_, ct) =>
+        {
+            playing.SetResult();
+            return Task.Delay(Timeout.InfiniteTimeSpan, ct);
+        }, 512);
+        var sample = check.CaptureAsync("mic", "out", Mock.Of<IProgress<Levels>>(), cancel.Token);
+        await playing.Task.WaitAsync(token);
+        await cancel.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sample);
+        Assert.True(mic.Disposed && output.Disposed);
     });
 
     /// <inheritdoc/>

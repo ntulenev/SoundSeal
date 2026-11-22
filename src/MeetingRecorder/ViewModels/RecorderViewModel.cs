@@ -128,9 +128,11 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     /// <summary>Whether the recording settings can currently be changed.</summary>
     public bool CanEdit => _display.CanEdit && !IsRefreshing;
 
+    /// <summary>Whether the selected audio sources are ready for a sound check.</summary>
+    public bool CanCheckSound => CanEdit && (!UsesMicrophone || Microphone is not null) && (!UsesOutput || Output is not null);
+
     /// <summary>Whether the selected mode has its required sources and a valid destination folder.</summary>
-    public bool CanStart => CanEdit && (!UsesMicrophone || Microphone is not null) && (!UsesOutput || Output is not null)
-        && RecordingFolder.TryParse(Folder, out _);
+    public bool CanStart => CanCheckSound && RecordingFolder.TryParse(Folder, out _);
 
     private bool IsRefreshing { get; set; }
 
@@ -302,6 +304,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         if (SetProperty(ref _display, ReadDisplay(), nameof(Display)))
         {
             OnPropertyChanged(nameof(CanEdit));
+            OnPropertyChanged(nameof(CanCheckSound));
             OnPropertyChanged(nameof(CanStart));
         }
     }
@@ -310,6 +313,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     {
         _ = SetProperty(ref _display, ReadDisplay(), nameof(Display));
         OnPropertyChanged(nameof(CanEdit));
+        OnPropertyChanged(nameof(CanCheckSound));
         OnPropertyChanged(nameof(CanStart));
     }
 }

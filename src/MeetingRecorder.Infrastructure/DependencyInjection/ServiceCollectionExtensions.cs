@@ -22,6 +22,7 @@ public static class ServiceCollectionExtensions
         return services.AddSingleton(AudioCaptureOptions.Read(configuration))
             .AddSingleton<IRecordingClock, PerformanceClock>()
             .AddSingleton<IDeviceCatalog, EndpointCatalog>()
+            .AddSingleton<ISoundCheck, SoundCheck>()
             .AddSingleton<ICaptureFactory, CaptureFactory>();
     }
 }

@@ -68,7 +68,7 @@ internal sealed class CaptureSession : ICaptureSession
             throw new InvalidOperationException("A capture interval is already active.");
         }
 
-        _interval = new CaptureInterval(_settings, _clock, _open, _file, Update, Fail, _capacity, _lifetime.Token);
+        _interval = new CaptureInterval(_settings.MicrophoneId, _settings.OutputId, _clock, _open, _file, Update, Fail, _capacity, _lifetime.Token);
         return _interval.Started.WaitAsync(cancellationToken);
     }
 

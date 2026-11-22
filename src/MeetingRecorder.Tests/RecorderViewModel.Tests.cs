@@ -273,11 +273,13 @@ public sealed partial class RecorderViewModelTests
         var catalog = new Mock<IDeviceCatalog>(MockBehavior.Strict);
         var microphone = new Endpoint("mic", "Microphone (USB Conference System)", true);
         var output = new Endpoint("out", "Headphones – HP USB-C Dock Audio Headset", true);
-        var alternate = new Endpoint("alt", "Alternate output", false);
+        var alternate = new Endpoint("alt", "Speakers (USB Audio)", false);
         catalog.Setup(c => c.ReadAsync(It.Is<CancellationToken>(t => t.CanBeCanceled))).ReturnsAsync(new Devices([microphone], [output, alternate]));
         var timer = new TestTimer();
         string? copied = null;
+        var soundCheck = new Mock<ISoundCheck>(MockBehavior.Strict);
         using var services = new ServiceCollection().AddMeetingRecorderPresentation()
+            .AddSingleton(soundCheck.Object)
             .AddSingleton(new RecordingLinkClipboard(text => copied = text))
             .AddSingleton(recorder.Object).AddSingleton(catalog.Object)
             .AddSingleton<IUiTimer>(timer).BuildServiceProvider();
@@ -403,6 +405,7 @@ public sealed partial class RecorderViewModelTests
             selector.SelectedIndex = 1;
             selector.IsDropDownOpen = false;
             model.Output.Should().Be(alternate);
+            await CheckSoundDialogAsync(window, FindButton("Check sound"), soundCheck, cancellationToken);
             FindButton("Browse…").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             FindButton("Select folder").IsVisible.Should().BeTrue();
             var path = (TextBox)window.FindName("BrowserPath");
@@ -454,6 +457,45 @@ public sealed partial class RecorderViewModelTests
                 window.Close();
             }
         }
+    }
+
+    private static async Task CheckSoundDialogAsync(MainWindow window, Button open, Mock<ISoundCheck> check,
+        CancellationToken cancellationToken)
+    {
+        var sample = new byte[] { 1, 2 };
+        var captured = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        check.Setup(c => c.CaptureAsync(new EndpointId("mic"), new EndpointId("alt"), It.IsAny<IProgress<Levels>>(),
+            It.IsAny<CancellationToken>())).Returns((EndpointId? _, EndpointId? _, IProgress<Levels> progress, CancellationToken _) =>
+            {
+                progress.Report(new Levels(0.1f, 0.2f));
+                return captured.Task;
+            });
+        check.Setup(c => c.PlayAsync(new EndpointId("alt"), sample, It.IsAny<CancellationToken>()))
+            .Returns((EndpointId? _, byte[] _, CancellationToken token) => Task.Delay(Timeout.InfiniteTimeSpan, token));
+        var modal = window.Dispatcher.InvokeAsync(() => open.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)));
+        await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+        var dialog = Assert.IsType<SoundCheckDialog>(Assert.Single(window.OwnedWindows.Cast<Window>()));
+        try
+        {
+            Assert.Contains("Speakers (USB Audio)", dialog.OutputName.Text, StringComparison.Ordinal);
+            dialog.CaptureButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert.Equal("Signal detected", dialog.MicrophoneSignal.Text);
+            Assert.False(dialog.ListenButton.IsEnabled);
+            captured.SetResult(sample);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert.True(dialog.ListenButton.IsEnabled);
+            SaveScreenshot(dialog, "sound-check");
+            dialog.ListenButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Assert.False(dialog.CaptureButton.IsEnabled);
+        }
+        finally
+        {
+            captured.TrySetResult(sample);
+            dialog.Close();
+        }
+        await modal.Task.WaitAsync(cancellationToken);
+        check.VerifyAll();
     }
 
     private static Button? FindVisualButton(DependencyObject root)
