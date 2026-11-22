@@ -26,6 +26,6 @@ internal static class ServiceCollectionExtensions
             .AddSingleton<FolderBrowserViewModel>()
             .AddSingleton<RecorderViewModel>()
             .AddSingleton(provider => new MainWindow(provider.GetRequiredService<RecorderViewModel>(),
-                provider.GetRequiredService<FolderBrowserViewModel>()));
+                provider.GetRequiredService<FolderBrowserViewModel>(), provider.GetRequiredService<ISoundCheck>()));
     }
 }

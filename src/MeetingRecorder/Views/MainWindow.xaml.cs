@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
 
+using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
 using MeetingRecorder.ViewModels;
 
@@ -14,6 +15,7 @@ namespace MeetingRecorder.Views;
 public partial class MainWindow : Window
 {
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly ISoundCheck _soundCheck;
     private readonly RecorderViewModel _model;
     private readonly FolderBrowserViewModel _browser;
     private bool _finishingExit;
@@ -21,10 +23,12 @@ public partial class MainWindow : Window
     private WindowState _fullWindowState;
 
     /// <summary>Binds the recorder and folder chooser to their views.</summary>
-    internal MainWindow(RecorderViewModel model, FolderBrowserViewModel browser)
+    internal MainWindow(RecorderViewModel model, FolderBrowserViewModel browser, ISoundCheck soundCheck)
     {
         ArgumentNullException.ThrowIfNull(model);
         ArgumentNullException.ThrowIfNull(browser);
+        ArgumentNullException.ThrowIfNull(soundCheck);
+        _soundCheck = soundCheck;
         _model = model;
         _browser = browser;
         InitializeComponent();
@@ -48,6 +52,19 @@ public partial class MainWindow : Window
 
     private void OnRefresh(object sender, RoutedEventArgs e) =>
         RunAsync(_model.RefreshDevicesAsync, _lifetime.Token);
+
+    private void OnCheckSound(object sender, RoutedEventArgs e)
+    {
+        if (_model.CanCheckSound)
+        {
+            var dialog = new SoundCheckDialog(_soundCheck, _model.UsesMicrophone ? _model.Microphone : null,
+                _model.UsesOutput ? _model.Output : null)
+            {
+                Owner = this
+            };
+            _ = dialog.ShowDialog();
+        }
+    }
 
     private void OnStart(object sender, RoutedEventArgs e) =>
         RunAsync(_model.StartAsync, _lifetime.Token);

@@ -75,6 +75,8 @@
                 </Border>
                 <DockPanel Grid.Row="1" Margin="0,12,0,8">
                     <Button DockPanel.Dock="Right" Content="Refresh devices" FontSize="12" Padding="9,4" IsEnabled="{Binding CanEdit}" Click="OnRefresh"/>
+                    <Button DockPanel.Dock="Right" Content="Check sound" FontSize="12" Padding="9,4" Margin="0,0,6,0"
+                            IsEnabled="{Binding CanCheckSound}" Click="OnCheckSound"/>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Recording mode" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
                         <ComboBox x:Name="ModeSelector" Margin="12,0,0,0" MinWidth="150" Padding="6,3"

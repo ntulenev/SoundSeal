@@ -25,11 +25,10 @@ internal sealed class CaptureInterval
     private long _boundary = OPEN_BOUNDARY;
 
     /// <summary>Starts the native capture thread and asynchronous mixer for a single interval.</summary>
-    internal CaptureInterval(RecordingSettings settings, IRecordingClock clock,
-        Func<EndpointId, bool, IInputEndpoint> open, IRecordingDestination file,
+    internal CaptureInterval(EndpointId? microphone, EndpointId? outputId, IRecordingClock clock,
+        Func<EndpointId, bool, IInputEndpoint> open, IPcmSink file,
         Action<Levels> meter, Action<RecordingProblem> interrupt, int capacity, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(open);
         ArgumentNullException.ThrowIfNull(file);
@@ -44,7 +43,7 @@ internal sealed class CaptureInterval
             AllowSynchronousContinuations = false
         });
         _consumer = MixAsync(file, meter, cancellationToken);
-        var thread = new Thread(() => Capture(settings, open, cancellationToken))
+        var thread = new Thread(() => Capture(microphone, outputId, open, cancellationToken))
         {
             IsBackground = true,
             Name = "SoundSeal WASAPI capture"
@@ -65,13 +64,13 @@ internal sealed class CaptureInterval
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031",
         Justification = "The producer must settle startup and notify the owner on every thread exit.")]
-    private void Capture(RecordingSettings settings, Func<EndpointId, bool, IInputEndpoint> open, CancellationToken cancellationToken)
+    private void Capture(EndpointId? microphone, EndpointId? outputId, Func<EndpointId, bool, IInputEndpoint> open, CancellationToken cancellationToken)
     {
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using var mic = settings.MicrophoneId is { } micId ? open(micId, false) : null;
-            using var output = settings.OutputId is { } outputId ? open(outputId, true) : null;
+            using var mic = microphone is not null ? open(microphone, false) : null;
+            using var output = outputId is not null ? open(outputId, true) : null;
             mic?.Start();
             output?.Start();
             var start = _clock.Now.Ticks;
@@ -139,7 +138,7 @@ internal sealed class CaptureInterval
         _interrupt(message);
     }
 
-    private async Task MixAsync(IRecordingDestination file, Action<Levels> meter, CancellationToken cancellationToken)
+    private async Task MixAsync(IPcmSink file, Action<Levels> meter, CancellationToken cancellationToken)
     {
         IntervalMixer? mixer = null;
         try

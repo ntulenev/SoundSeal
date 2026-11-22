@@ -17,6 +17,13 @@ SoundSeal is a simple offline Windows recorder for meetings, audio streams and v
 | [![SoundSeal ready to record, with selectors for the microphone, playback device, and recording folder](docs/screenshots/ready.png)](docs/screenshots/ready.png) | [![SoundSeal recording, with the elapsed time and active signal meters for both audio sources](docs/screenshots/recording.png)](docs/screenshots/recording.png) |
 
 <details>
+<summary>Check sound before a meeting</summary>
+
+![Five-second test with separate peak levels for microphone and computer audio and a Listen to sample button](docs/screenshots/sound-check.png)
+
+</details>
+
+<details>
 <summary>Computer audio — playback only</summary>
 
 ![Computer audio mode with the playback device selected and the microphone off](docs/screenshots/computer-audio.png)
@@ -68,6 +75,7 @@ After building, you can launch `src\MeetingRecorder\bin\Release\net10.0-windows\
 
 1. Choose **Meeting** for microphone and playback, **Computer audio** for playback only, or **Dictaphone** for microphone only. SoundSeal opens only the devices needed for that mode. Filenames begin with `Meeting-`, `Audio-` or `Dictaphone-`.
    Choose the microphone or playback device required for your mode. For a meeting, select the headphones or speakers you use to hear the other participants. SoundSeal initially selects the Windows defaults and keeps your selected devices for the entire recording, including pauses.
+   Before recording, click **Check sound** and then **Start check**. In Meeting and Computer audio modes, a short tone plays on the selected output to test loopback. In Meeting and Dictaphone modes, speak for five seconds to test your microphone. Each source shows its peak level and whether a signal was detected. Click **Listen to sample** to hear the captured mix. Dictaphone plays the sample on the Windows default output. **Check again** repeats the test. Closing the dialog releases the devices and discards the sample, which is held only in memory.
 2. Check **Recording folder**. The default is `%LOCALAPPDATA%\MeetingRecorder\Recordings`. Enter a path or click **Browse…** to choose a folder. SoundSeal creates the folder when recording starts if it doesn't already exist.
 3. Click **Start recording**. The seal's glasses glow while recording is active, and a red dot appears beside **Recording**. Speak into the microphone, then check the other meter when someone on the call speaks. Each meter shows **Signal detected** or **Silent**. **Elapsed time** keeps counting during silence.
 4. Click **Pause** to leave a break out of the file. Both meters show **Paused** and the timer stops. Click **Resume** to continue recording to the same file.

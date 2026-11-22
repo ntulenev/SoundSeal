@@ -1,0 +1,30 @@
+<Window x:Class="MeetingRecorder.Views.SoundCheckDialog" x:ClassModifier="internal"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Check sound" Width="440" SizeToContent="Height" ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False" ThemeMode="Dark" Background="{DynamicResource Canvas}" Foreground="{DynamicResource Bright}">
+    <Window.Resources>
+        <ResourceDictionary Source="/SoundSeal;component/Themes/RecorderTheme.xaml"/>
+    </Window.Resources>
+    <StackPanel Margin="20">
+        <TextBlock x:Name="Instructions" TextWrapping="Wrap" Margin="0,0,0,12"/>
+        <StackPanel x:Name="MicrophonePanel" Margin="0,0,0,10">
+            <TextBlock x:Name="MicrophoneName" TextWrapping="Wrap" FontWeight="SemiBold"/>
+            <ProgressBar x:Name="MicrophonePeak" Height="6" Maximum="1" Margin="0,5" BorderThickness="0"
+                         Foreground="{StaticResource Accent}" Background="{StaticResource Rule}" AutomationProperties.Name="Microphone peak"/>
+            <TextBlock x:Name="MicrophoneSignal" Text="Ready" Foreground="{StaticResource Muted}"/>
+        </StackPanel>
+        <StackPanel x:Name="OutputPanel" Margin="0,0,0,10">
+            <TextBlock x:Name="OutputName" TextWrapping="Wrap" FontWeight="SemiBold"/>
+            <ProgressBar x:Name="OutputPeak" Height="6" Maximum="1" Margin="0,5" BorderThickness="0"
+                         Foreground="{StaticResource Accent}" Background="{StaticResource Rule}" AutomationProperties.Name="Computer audio peak"/>
+            <TextBlock x:Name="OutputSignal" Text="Ready" Foreground="{StaticResource Muted}"/>
+        </StackPanel>
+        <TextBlock x:Name="Status" TextWrapping="Wrap" Margin="0,2,0,12" AutomationProperties.LiveSetting="Polite"/>
+        <DockPanel LastChildFill="False">
+            <Button DockPanel.Dock="Right" Content="Close" IsCancel="True"/>
+            <Button x:Name="CaptureButton" Content="Start check" IsDefault="True" Click="OnCheckAsync" Style="{StaticResource Primary}"/>
+            <Button x:Name="ListenButton" Content="Listen to sample" IsEnabled="False" Click="OnListenAsync" Margin="6,0,0,0"/>
+        </DockPanel>
+    </StackPanel>
+</Window>
