@@ -213,11 +213,7 @@
                 </Grid>
                 <Border Grid.Row="5" BorderBrush="{StaticResource Rule}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
                     <DockPanel>
-                        <Button Content="Open folder" DockPanel.Dock="Right" Click="OnOpen">
-                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers>
-                                <DataTrigger Binding="{Binding Display.File}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
-                            </Style.Triggers></Style></Button.Style>
-                        </Button>
+                        <Button Content="Open folder" DockPanel.Dock="Right" Click="OnOpen"/>
                         <StackPanel Orientation="Horizontal">
                             <Button Content="Start recording" Style="{StaticResource Primary}" Click="OnStart" IsEnabled="{Binding CanStart}"/>
                             <Button Content="{Binding Display.PauseLabel}" Margin="8,0" Click="OnPause" IsEnabled="{Binding Display.CanFinish}"/>

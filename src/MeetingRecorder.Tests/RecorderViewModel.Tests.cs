@@ -207,7 +207,14 @@ public sealed partial class RecorderViewModelTests
             new Mock<IDeviceCatalog>(MockBehavior.Strict).Object, timer, launcher,
             new RecordingLinkClipboard(Clipboard.SetText));
         model.OpenFolder();
-        launcher.Path.Should().BeNull();
+        Assert.Equal(model.Folder, launcher.Path);
+        model.Folder = "relative";
+        model.OpenFolder();
+        Assert.Contains("full recording folder path", model.FileActionStatus, StringComparison.Ordinal);
+        model.Folder = @"C:\Next meeting";
+        model.OpenFolder();
+        Assert.Equal(model.Folder, launcher.Path);
+        Assert.Empty(model.FileActionStatus);
 
         const string FILE = @"C:\Recordings\meeting.wav";
         recorder.SetupGet(r => r.Snapshot).Returns(new RecorderSnapshot(RecorderState.Saved,
@@ -217,7 +224,7 @@ public sealed partial class RecorderViewModelTests
         launcher.Path.Should().Be(FILE);
         launcher.Unavailable = true;
         model.OpenFolder();
-        model.Display.Detail.Should().Contain("no longer available");
+        model.FileActionStatus.Should().Contain("no longer available");
         (model.Display.File?.Value).Should().Be(FILE);
     }
 
@@ -557,6 +564,8 @@ public sealed partial class RecorderViewModelTests
     {
         internal string? Path { get; private set; }
         internal bool Unavailable { get; set; }
+
+        public void OpenDestination(RecordingFolder folder) => Path = folder.Value;
 
         public void Open(RecordingFile file)
         {
