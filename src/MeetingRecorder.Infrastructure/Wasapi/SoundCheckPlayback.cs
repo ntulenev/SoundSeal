@@ -35,24 +35,18 @@ internal static class SoundCheckPlayback
                 using var device = output is null ? devices.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia)
                     : devices.GetDevice(output.Value);
                 using var player = new WasapiOut(device, AudioClientShareMode.Shared, true, 100);
-                var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                player.PlaybackStopped += (sender, e) =>
-                {
-                    if (e.Exception is null)
-                    {
-                        _ = stopped.TrySetResult();
-                    }
-                    else
-                    {
-                        _ = stopped.TrySetException(new RecordingException("Playback failed. Check the output device.", e.Exception));
-                    }
-                };
+                var stopped = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
+                player.PlaybackStopped += (sender, e) => stopped.TrySetResult(e.Exception);
                 player.Init(source);
                 cancellationToken.ThrowIfCancellationRequested();
                 player.Play();
                 try
                 {
-                    await stopped.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    var error = await stopped.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    if (error is not null)
+                    {
+                        throw new RecordingException("Playback failed. Check the output device.", error);
+                    }
                 }
                 finally
                 {

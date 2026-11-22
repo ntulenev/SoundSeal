@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private readonly RecorderViewModel _model;
     private readonly FolderBrowserViewModel _browser;
     private bool _finishingExit;
+    private Point _dragOrigin;
     private Rect? _fullBounds;
     private WindowState _fullWindowState;
 
@@ -144,6 +145,45 @@ public partial class MainWindow : Window
     }
 
     private void OnOpen(object sender, RoutedEventArgs e) => _model.OpenFolder();
+
+    private void OnFileDragDown(object sender, MouseButtonEventArgs e)
+    {
+        var handle = (FrameworkElement)sender;
+        _dragOrigin = e.GetPosition(handle);
+        e.Handled = handle.CaptureMouse();
+    }
+
+    private void OnFileDragUp(object sender, MouseButtonEventArgs e)
+    {
+        var handle = (FrameworkElement)sender;
+        if (handle.IsMouseCaptured)
+        {
+            handle.ReleaseMouseCapture();
+            e.Handled = true;
+        }
+    }
+
+    private void OnFileDragMove(object sender, MouseEventArgs e)
+    {
+        var handle = (FrameworkElement)sender;
+        if (!handle.IsMouseCaptured || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+        var offset = e.GetPosition(handle) - _dragOrigin;
+        if (Math.Abs(offset.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(offset.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        handle.ReleaseMouseCapture();
+        if (_model.CreateDragData(handle.DataContext as RecordingFile) is { } data)
+        {
+            _ = DragDrop.DoDragDrop(handle, data, DragDropEffects.Copy);
+        }
+        e.Handled = true;
+    }
 
     private void OnCopyLink(object sender, RoutedEventArgs e)
     {

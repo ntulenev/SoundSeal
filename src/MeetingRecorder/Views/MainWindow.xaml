@@ -166,13 +166,33 @@
                             <Button DockPanel.Dock="Right" Content="Copy link" Padding="9,4" Margin="8,0,0,0"
                                     Visibility="{Binding Display.CanCopyLink, Converter={StaticResource BoolToVisibility}}"
                                     ToolTip="Copy the file link to the clipboard" Click="OnCopyLink"/>
-                            <TextBlock Text="{Binding Display.File.Value}" TextWrapping="Wrap" VerticalAlignment="Center"
-                                       Foreground="{StaticResource Accent}" ToolTip="{Binding Display.File}"/>
+                            <DockPanel x:Name="SingleFileHandle" IsEnabled="{Binding Display.CanCopyLink}" Background="Transparent"
+                                       MouseLeftButtonDown="OnFileDragDown" MouseMove="OnFileDragMove" MouseLeftButtonUp="OnFileDragUp">
+                                <DockPanel.Style>
+                                    <Style TargetType="DockPanel"><Style.Triggers>
+                                        <Trigger Property="IsEnabled" Value="True"><Setter Property="Cursor" Value="Hand"/>
+                                            <Setter Property="ToolTip" Value="Drag the WAV to a folder or upload area"/>
+                                        </Trigger>
+                                    </Style.Triggers></Style>
+                                </DockPanel.Style>
+                                <TextBlock DockPanel.Dock="Right" Text="Drag WAV" Margin="8,0,0,0" VerticalAlignment="Center"
+                                           Visibility="{Binding Display.CanCopyLink, Converter={StaticResource BoolToVisibility}}"/>
+                                <TextBlock Text="{Binding Display.File.Value}" TextWrapping="Wrap" VerticalAlignment="Center"
+                                           Foreground="{StaticResource Accent}"/>
+                            </DockPanel>
                         </DockPanel>
                     </ScrollViewer>
                     <DockPanel Grid.Row="1" Visibility="{Binding Display.ShowParts, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock DockPanel.Dock="Top" Text="{Binding Display.Files.Count, StringFormat='Saved files ({0})'}"
-                                   FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                            <Border x:Name="AllPartsHandle" DockPanel.Dock="Right" Cursor="Hand" Padding="8,2"
+                                    BorderThickness="1" CornerRadius="4" BorderBrush="{StaticResource Rule}" Background="{StaticResource Panel}"
+                                    MouseLeftButtonDown="OnFileDragDown" MouseMove="OnFileDragMove" MouseLeftButtonUp="OnFileDragUp"
+                                    ToolTip="Drag every saved WAV in part-number order">
+                                <TextBlock Text="Drag all parts" Foreground="{StaticResource Accent}"/>
+                            </Border>
+                            <TextBlock Text="{Binding Display.Files.Count, StringFormat='Saved files ({0})'}"
+                                       FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </DockPanel>
                         <ListBox x:Name="SavedParts" ItemsSource="{Binding Display.Files}" HorizontalContentAlignment="Stretch"
                                  VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  AutomationProperties.Name="Saved recording files">
@@ -181,13 +201,15 @@
                                     <DockPanel ToolTip="{Binding Value}" Margin="4,1">
                                         <Button DockPanel.Dock="Right" Content="Copy link" Click="OnCopyLink" Padding="8,3"/>
                                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"
+                                                   Cursor="Hand" Background="Transparent" ToolTip="Drag this WAV file"
+                                                   MouseLeftButtonDown="OnFileDragDown" MouseMove="OnFileDragMove" MouseLeftButtonUp="OnFileDragUp"
                                                    Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
                                     </DockPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
                     </DockPanel>
-                    <TextBlock Grid.Row="2" Text="{Binding CopyLinkStatus}" Foreground="{StaticResource Muted}" AutomationProperties.LiveSetting="Polite"/>
+                    <TextBlock Grid.Row="2" Text="{Binding FileActionStatus}" Foreground="{StaticResource Muted}" AutomationProperties.LiveSetting="Polite"/>
                 </Grid>
                 <Border Grid.Row="5" BorderBrush="{StaticResource Rule}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
                     <DockPanel>

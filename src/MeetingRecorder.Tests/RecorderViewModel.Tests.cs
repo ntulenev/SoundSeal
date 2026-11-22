@@ -381,6 +381,8 @@ public sealed partial class RecorderViewModelTests
             window.UpdateLayout();
             var list = (ListBox)window.FindName("SavedParts");
             Assert.True(list.IsVisible);
+            Assert.True(window.AllPartsHandle.IsVisible);
+            Assert.False(window.SingleFileHandle.IsVisible);
             Assert.Equal(20, list.Items.Count);
             SaveScreenshot(window, "parts");
             list.ScrollIntoView(list.Items[^1]);
@@ -395,9 +397,11 @@ public sealed partial class RecorderViewModelTests
             saved = single;
             model.SplitRecording = false;
             timer.Pulse();
+            Assert.True(window.SingleFileHandle.IsVisible && window.SingleFileHandle.IsEnabled);
+            Assert.False(window.AllPartsHandle.IsVisible);
             copy.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             copied.Should().Be("file:///C:/Team%20meetings%20%231/Meeting-2026-11-21_10-00-00.wav");
-            model.CopyLinkStatus.Should().Be("Link copied.");
+            model.FileActionStatus.Should().Be("Link copied.");
             var selector = Descendants(window).OfType<ComboBox>().Single(c => c.Items.Count == 2);
             selector.IsDropDownOpen = true;
             selector.UpdateLayout();
@@ -423,7 +427,7 @@ public sealed partial class RecorderViewModelTests
             SaveScreenshot(window, "recording");
             var recordingLogo = logo.Source;
             recordingLogo.Should().NotBeNull().And.NotBeSameAs(idleLogo);
-            model.CopyLinkStatus.Should().BeEmpty();
+            model.FileActionStatus.Should().BeEmpty();
             copy.IsVisible.Should().BeFalse();
             FindButton("Pause").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             logo.Source.Should().BeSameAs(idleLogo);

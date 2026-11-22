@@ -47,14 +47,14 @@ SoundSeal is a simple offline Windows recorder for meetings, audio streams and v
 <details>
 <summary>Saved recording</summary>
 
-![A saved WAV with its file path and Copy link button](docs/screenshots/saved.png)
+![A saved WAV with its file path, Drag WAV handle and Copy link button](docs/screenshots/saved.png)
 
 </details>
 
 <details>
 <summary>Recording saved in 15-minute parts</summary>
 
-![A scrollable list of 20 WAV files, each with its own Copy link button](docs/screenshots/parts.png)
+![A list of 20 WAV parts with a Drag all parts handle and a Copy link action on each row](docs/screenshots/parts.png)
 
 </details>
 
@@ -79,7 +79,7 @@ After building, you can launch `src\MeetingRecorder\bin\Release\net10.0-windows\
 2. Check **Recording folder**. The default is `%LOCALAPPDATA%\MeetingRecorder\Recordings`. Enter a path or click **Browse…** to choose a folder. SoundSeal creates the folder when recording starts if it doesn't already exist.
 3. Click **Start recording**. The seal's glasses glow while recording is active, and a red dot appears beside **Recording**. Speak into the microphone, then check the other meter when someone on the call speaks. Each meter shows **Signal detected** or **Silent**. **Elapsed time** keeps counting during silence.
 4. Click **Pause** to leave a break out of the file. Both meters show **Paused** and the timer stops. Click **Resume** to continue recording to the same file.
-5. Click **Finish recording**. When the status changes to **Saved**, the window shows the duration and full file path. Click **Copy link** beside the path to copy a `file://` link to the WAV, or **Open folder** to find it in File Explorer. Anyone using the link needs access to the same file location. If you close the window during a recording, choose **Finish and exit** to save it or **Return to recorder** to keep the session open.
+5. Click **Finish recording**. When the status changes to **Saved**, the window shows the duration and full file path. Drag the WAV into a file drop area, click **Copy link** to copy a `file://` link, or click **Open folder** to find it in File Explorer. Anyone using the link needs access to the same file location. If you close the window during a recording, choose **Finish and exit** to save it or **Return to recorder** to keep the session open.
 
 During a recording or pause, click **Compact view** to keep the timer, status and controls above your call window. Drag the timer to move the compact window. **Stop** pauses the current recording and **Start** resumes it. **Full view** restores your original window while the session continues. **Finish** immediately returns to the full window, where you can see the saved WAV or the list of parts.
 
@@ -91,7 +91,9 @@ SoundSeal saves one mono track as 16-bit PCM audio at 16,000 Hz. One hour of act
 
 ## Transcribe and summarize
 
-Click **Open folder** and select the WAV in your transcription tool. For a split recording, submit the files in part-number order, then ask the AI to summarize the combined transcript. For a meeting, you can ask it to list decisions, action items and open questions. **Copy link** copies a local file URI suitable for an application with access to that folder. Use the WAV upload option for a web service.
+After finishing, drag the file path or **Drag WAV** from SoundSeal into your transcription tool’s upload area. For a split meeting, drag **Drag all parts** to pass every saved WAV in part-number order in one gesture, or drag a part by its filename to upload it individually. The destination must accept file drops and support multiple files for a batch. You can also drop the files into a File Explorer folder to copy them. The original WAVs stay in the recording folder.
+
+If your tool uses a file picker, click **Open folder** in SoundSeal to locate the recordings, then select the same WAV files in the tool’s upload dialog. For a split meeting, ask the AI to summarize the combined transcript and list decisions, action items and open questions. **Copy link** copies a local file URI suitable for an application with access to that folder. Use the WAV upload option for a web service.
 
 ## Troubleshooting
 
@@ -132,6 +134,7 @@ The same Release coverage script was run on each revision. Percentages combine l
 | v3.1.7 | 166 | 1404 / 1557 (90.2%) | 739 / 794 (93.1%) |
 | v3.1.8 | 166 | 1406 / 1559 (90.2%) | 740 / 795 (93.1%) |
 | v3.2.0 | 168 | 1455 / 1606 (90.6%) | 759 / 811 (93.6%) |
+| v3.3.0 | 173 | 1583 / 1808 (87.6%) | 825 / 908 (90.9%) |
 
 The v2.0.0 domain suite and integration tests together exercise all 227 executable domain lines and all 96 domain branches. The full suite covers invalid value construction, immutable device and folder listings, cancellation before and during device startup, retry after cleanup, and publication after late cancellation.
 

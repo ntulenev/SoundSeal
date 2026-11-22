@@ -547,7 +547,7 @@ public sealed class CaptureSessionTests : IDisposable
     [InlineData(false, true)]
     public Task SoundCheckShouldCaptureSelectedSources(bool hasMic, bool hasOutput) => TestDeadline.Run(async token =>
     {
-        long ticks = -TimeSpan.TicksPerMillisecond * 50;
+        var ticks = -TimeSpan.TicksPerMillisecond * 50;
         var clock = new Mock<IRecordingClock>();
         clock.SetupGet(c => c.Now).Returns(() => Interlocked.Add(ref ticks, TimeSpan.TicksPerMillisecond * 50));
         using var mic = new TestEndpoint { NextPacket = MixingTests.Tone(false, 0, 0, 0.1, 440) };
