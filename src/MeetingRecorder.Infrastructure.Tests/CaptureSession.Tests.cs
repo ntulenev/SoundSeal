@@ -462,6 +462,30 @@ public sealed class CaptureSessionTests : IDisposable
         Assert.Throws<RecordingException>(() => new FolderLauncher().Open(Path.Combine(_folder.FullName, "gone", "lost.wav")));
     }
 
+    /// <summary>The first open creates an empty destination and subsequent opens preserve its contents.</summary>
+    [Trait("Category", "Integration")]
+    [Fact]
+    public void OpenDestinationShouldCreateAndReuseTheSelectedFolder()
+    {
+        var directory = Path.Combine(_folder.FullName, "Meetings #1", "Audio");
+        var file = Path.Combine(directory, "sample.wav");
+        var opened = new List<string>();
+        var launcher = new FolderLauncher(path =>
+        {
+            Assert.True(Directory.Exists(path));
+            opened.Add(path);
+        });
+
+        launcher.OpenDestination(directory);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(directory));
+        File.WriteAllText(file, "existing recording");
+        launcher.OpenDestination(directory);
+        launcher.Open(new RecordingFile(file));
+        Assert.Equal([directory, directory, directory], opened);
+        Assert.Throws<RecordingException>(() => launcher.OpenDestination(file));
+        Assert.Equal("existing recording", File.ReadAllText(file));
+    }
+
     /// <summary>Native failure filters distinguish transient device faults from programming errors.</summary>
     [Trait("Category", "Unit")]
     [Fact(DisplayName = "Native failure filters distinguish device faults from unrelated exceptions")]

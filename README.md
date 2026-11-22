@@ -76,7 +76,7 @@ After building, you can launch `src\MeetingRecorder\bin\Release\net10.0-windows\
 1. Choose **Meeting** for microphone and playback, **Computer audio** for playback only, or **Dictaphone** for microphone only. SoundSeal opens only the devices needed for that mode. Filenames begin with `Meeting-`, `Audio-` or `Dictaphone-`.
    Choose the microphone or playback device required for your mode. For a meeting, select the headphones or speakers you use to hear the other participants. SoundSeal initially selects the Windows defaults and keeps your selected devices for the entire recording, including pauses.
    Before recording, click **Check sound** and then **Start check**. In Meeting and Computer audio modes, a short tone plays on the selected output to test loopback. In Meeting and Dictaphone modes, speak for five seconds to test your microphone. Each source shows its peak level and whether a signal was detected. Click **Listen to sample** to hear the captured mix. Dictaphone plays the sample on the Windows default output. **Check again** repeats the test. Closing the dialog releases the devices and discards the sample, which is held only in memory.
-2. Check **Recording folder**. The default is `%LOCALAPPDATA%\MeetingRecorder\Recordings`. Enter a path or click **Browse…** to choose a folder. SoundSeal creates the folder when recording starts if it doesn't already exist.
+2. Check **Recording folder**. The default is `%LOCALAPPDATA%\MeetingRecorder\Recordings`. Enter a path or click **Browse…** to choose a folder. In the full window, **Open folder** is available from startup and opens the recording folder in File Explorer. SoundSeal creates the selected folder the first time you open it or start a recording.
 3. Click **Start recording**. The seal's glasses glow while recording is active, and a red dot appears beside **Recording**. Speak into the microphone, then check the other meter when someone on the call speaks. Each meter shows **Signal detected** or **Silent**. **Elapsed time** keeps counting during silence.
 4. Click **Pause** to leave a break out of the file. Both meters show **Paused** and the timer stops. Click **Resume** to continue recording to the same file.
 5. Click **Finish recording**. When the status changes to **Saved**, the window shows the duration and full file path. Drag the WAV into a file drop area, click **Copy link** to copy a `file://` link, or click **Open folder** to find it in File Explorer. Anyone using the link needs access to the same file location. If you close the window during a recording, choose **Finish and exit** to save it or **Return to recorder** to keep the session open.
@@ -135,6 +135,7 @@ The same Release coverage script was run on each revision. Percentages combine l
 | v3.1.8 | 166 | 1406 / 1559 (90.2%) | 740 / 795 (93.1%) |
 | v3.2.0 | 168 | 1455 / 1606 (90.6%) | 759 / 811 (93.6%) |
 | v3.3.0 | 173 | 1583 / 1808 (87.6%) | 825 / 908 (90.9%) |
+| v3.4.0 | 174 | 1603 / 1823 (87.9%) | 830 / 912 (91.0%) |
 
 The v2.0.0 domain suite and integration tests together exercise all 227 executable domain lines and all 96 domain branches. The full suite covers invalid value construction, immutable device and folder listings, cancellation before and during device startup, retry after cleanup, and publication after late cancellation.
 

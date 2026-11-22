@@ -120,7 +120,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     /// <summary>Latest display values for this window.</summary>
     public RecorderDisplay Display => _display;
 
-    /// <summary>Feedback from copying a link or dragging a published WAV.</summary>
+    /// <summary>Feedback from opening the recording folder, copying a link or dragging a WAV.</summary>
     public string FileActionStatus {
         get;
         private set => SetProperty(ref field, value);
@@ -268,22 +268,30 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         return new DataObject(DataFormats.FileDrop, paths);
     }
 
-    /// <summary>Opens the folder containing the published or recoverable file.</summary>
+    /// <summary>Opens the result folder when available, or the selected destination before publication.</summary>
     internal void OpenFolder()
     {
-        if (Display.File is not { } path)
-        {
-            return;
-        }
-
         try
         {
-            _folders.Open(path);
+            if (Display.File is { } file)
+            {
+                _folders.Open(file);
+            }
+            else if (RecordingFolder.TryParse(Folder, out var folder))
+            {
+                _folders.OpenDestination(folder);
+            }
+            else
+            {
+                FileActionStatus = "Enter a full recording folder path or choose Browse.";
+                return;
+            }
+
+            FileActionStatus = string.Empty;
         }
         catch (RecordingException ex)
         {
-            _notice = ex.Message;
-            Refresh();
+            FileActionStatus = ex.Message;
         }
     }
 

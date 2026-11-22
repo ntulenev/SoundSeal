@@ -44,9 +44,12 @@ public sealed partial class RecorderViewModelTests
             .Callback(() => state = RecorderState.Saving).Returns(publication.Task);
         var catalog = new Mock<IDeviceCatalog>();
         catalog.Setup(c => c.ReadAsync(It.Is<CancellationToken>(t => t.CanBeCanceled))).ReturnsAsync(new Devices([], []));
+        var folders = new Mock<IFolderLauncher>(MockBehavior.Strict);
+        folders.Setup(f => f.OpenDestination(It.IsAny<RecordingFolder>()));
+        folders.Setup(f => f.Open(new RecordingFile(files[1])));
         var timer = new TestTimer();
         using var services = new ServiceCollection().AddMeetingRecorderPresentation()
-            .AddSingleton(Mock.Of<ISoundCheck>())
+            .AddSingleton(Mock.Of<ISoundCheck>()).AddSingleton(folders.Object)
             .AddSingleton(recorder.Object).AddSingleton(catalog.Object).AddSingleton<IUiTimer>(timer).BuildServiceProvider();
         var window = services.GetRequiredService<MainWindow>();
         var model = services.GetRequiredService<RecorderViewModel>();
@@ -83,9 +86,12 @@ public sealed partial class RecorderViewModelTests
                 window.UpdateLayout();
             }
 
+            Click("Open folder");
+            folders.Verify(f => f.OpenDestination(new RecordingFolder(model.Folder)), Times.Once);
             Assert.False(Button("Compact view").IsVisible);
             state = RecorderState.Recording;
             timer.Pulse();
+            Click("Open folder");
             Click("Compact view");
             Assert.True(window.Topmost);
             Assert.Equal(WindowState.Normal, window.WindowState);
@@ -103,6 +109,11 @@ public sealed partial class RecorderViewModelTests
             Assert.Contains(Descendants(window.CompactSurface).OfType<TextBlock>(), text => text.Text == "00:00:40");
             Click("Stop");
             Assert.Equal(RecorderState.Paused, state);
+            Assert.False(Button("Open folder").IsVisible);
+            Click("Full view");
+            Click("Open folder");
+            folders.Verify(f => f.OpenDestination(new RecordingFolder(model.Folder)), Times.Exactly(3));
+            Click("Compact view");
             Assert.False(Button("Stop").IsEnabled);
             Assert.Contains(Descendants(window.CompactSurface).OfType<TextBlock>(), text => text.Text == "Paused");
             Click("Start");
@@ -140,6 +151,8 @@ public sealed partial class RecorderViewModelTests
             publication.SetResult();
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Assert.Equal(RecorderState.Saved, model.Display.State);
+            Click("Open folder");
+            folders.Verify(f => f.Open(new RecordingFile(files[1])), Times.Once);
             Assert.True(window.SavedParts.IsVisible);
             Assert.Equal(2, window.SavedParts.Items.Count);
             recorder.Verify(r => r.FinishAsync(It.Is<CancellationToken>(t => t.CanBeCanceled)), Times.Once);
