@@ -15,6 +15,11 @@ public sealed record RecordingSettings
     /// <summary>Pins the audio sources and file publication schedule for this session.</summary>
     public RecordingSettings(EndpointId? microphoneId, EndpointId? outputId, RecordingFolder folder,
         RecordingMode mode, RecordingLayout layout)
+        : this(microphoneId, outputId, folder, mode, layout, RecordingFileFormat.Wav) { }
+
+    /// <summary>Pins the sources, publication schedule and file encoding for this session.</summary>
+    public RecordingSettings(EndpointId? microphoneId, EndpointId? outputId, RecordingFolder folder,
+        RecordingMode mode, RecordingLayout layout, RecordingFileFormat format)
     {
         if (!Enum.IsDefined(mode))
         {
@@ -37,12 +42,21 @@ public sealed record RecordingSettings
             throw new ArgumentOutOfRangeException(nameof(layout));
         }
 
+        if (!Enum.IsDefined(format))
+        {
+            throw new ArgumentOutOfRangeException(nameof(format));
+        }
+
+        Format = format;
         Layout = layout;
         Mode = mode;
         MicrophoneId = mode == RecordingMode.Audio ? null : microphoneId;
         OutputId = mode == RecordingMode.Dictaphone ? null : outputId;
         Folder = folder;
     }
+
+    /// <summary>File encoding used for every part of this session.</summary>
+    public RecordingFileFormat Format { get; }
 
     /// <summary>File publication schedule pinned across pauses.</summary>
     public RecordingLayout Layout { get; }

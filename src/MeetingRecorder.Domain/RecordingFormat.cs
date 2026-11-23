@@ -1,6 +1,6 @@
 namespace MeetingRecorder.Domain;
 
-/// <summary>The on-disk format is little-endian signed mono PCM16.</summary>
+/// <summary>The mixer output is little-endian signed mono PCM16.</summary>
 public static class RecordingFormat
 {
     /// <summary>Output frames per second for mono PCM16.</summary>
@@ -11,6 +11,6 @@ public static class RecordingFormat
 
     /// <summary>Converts complete mono frames to their exact playing time.</summary>
     /// <param name="frames">Number of complete 16 kHz PCM frames in the data chunk.</param>
-    /// <returns>The playing time encoded by the file header.</returns>
+    /// <returns>The playing time of the captured samples.</returns>
     public static RecordingDuration Duration(FrameCount frames) => TimeSpan.FromTicks(checked(frames.Value * TicksPerFrame));
 }

@@ -55,7 +55,19 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Whether to publish each fifteen minutes of active audio as a separate WAV.</summary>
+    /// <summary>File format selected before starting a session.</summary>
+    public RecordingFileFormat Format {
+        get;
+        set
+        {
+            if (CanEdit && Enum.IsDefined(value))
+            {
+                _ = SetProperty(ref field, value);
+            }
+        }
+    } = RecordingFileFormat.Mp3;
+
+    /// <summary>Whether to publish each fifteen minutes of active audio as a separate file.</summary>
     public bool SplitRecording {
         get;
         set
@@ -120,7 +132,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
     /// <summary>Latest display values for this window.</summary>
     public RecorderDisplay Display => _display;
 
-    /// <summary>Feedback from opening the recording folder, copying a link or dragging a WAV.</summary>
+    /// <summary>Feedback from opening the recording folder, copying a link or dragging a recording.</summary>
     public string FileActionStatus {
         get;
         private set => SetProperty(ref field, value);
@@ -195,7 +207,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         _notice = string.Empty;
         FileActionStatus = string.Empty;
         return ShowTransitionAsync(_recorder.StartAsync(new(Microphone?.Id, Output?.Id, Folder, Mode,
-            SplitRecording ? RecordingLayout.QuarterHourParts : RecordingLayout.SingleFile), cancellationToken), cancellationToken);
+            SplitRecording ? RecordingLayout.QuarterHourParts : RecordingLayout.SingleFile, Format), cancellationToken), cancellationToken);
     }
 
     /// <summary>Pauses or resumes the active session.</summary>

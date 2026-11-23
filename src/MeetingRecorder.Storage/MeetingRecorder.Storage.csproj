@@ -8,4 +8,7 @@
     <ProjectReference Include="..\MeetingRecorder.Abstractions\MeetingRecorder.Abstractions.csproj" />
     <ProjectReference Include="..\MeetingRecorder.Domain\MeetingRecorder.Domain.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NAudio.Wasapi" Version="2.4.0" />
+  </ItemGroup>
 </Project>

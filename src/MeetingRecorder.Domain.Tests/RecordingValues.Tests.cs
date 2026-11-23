@@ -135,6 +135,8 @@ public sealed class RecordingValuesTests
     {
         var folder = Path.GetTempPath();
         Assert.Throws<ArgumentOutOfRangeException>(() => new RecordingSettings("mic", "out", folder, RecordingMode.Meeting, (RecordingLayout)11));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new RecordingSettings("mic", "out", folder,
+            RecordingMode.Meeting, RecordingLayout.SingleFile, (RecordingFileFormat)11));
         Assert.Null(new RecordingSettings(null, "out", folder, RecordingMode.Audio).MicrophoneId);
         Assert.Null(new RecordingSettings("mic", null, folder, RecordingMode.Dictaphone).OutputId);
         Assert.Throws<ArgumentNullException>(() => new RecordingSettings(null, null, folder, RecordingMode.Audio));

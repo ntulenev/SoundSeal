@@ -23,7 +23,7 @@ public interface IRecorder
     /// <summary>Ends the active interval and clears both meters.</summary>
     Task PauseAsync(CancellationToken cancellationToken);
 
-    /// <summary>Starts another interval on the original endpoints in the same WAV.</summary>
+    /// <summary>Starts another interval on the original endpoints in the same recording.</summary>
     Task ResumeAsync(CancellationToken cancellationToken);
 
     /// <summary>Waits for the single owner to publish the recording result.</summary>

@@ -53,11 +53,13 @@ public sealed partial class RecorderViewModelTests
             model.Output.Should().Be(output);
             model.CanStart.Should().BeTrue();
             model.SplitRecording.Should().BeTrue();
-            recorder.Setup(r => r.StartAsync(new RecordingSettings("mic", "out", model.Folder, RecordingMode.Meeting, RecordingLayout.QuarterHourParts), It.Is<CancellationToken>(t => t.CanBeCanceled)))
+            recorder.Setup(r => r.StartAsync(new RecordingSettings("mic", "out", model.Folder, RecordingMode.Meeting, RecordingLayout.QuarterHourParts, RecordingFileFormat.Mp3), It.Is<CancellationToken>(t => t.CanBeCanceled)))
                 .Callback(() => snapshot = new(RecorderState.Recording, started: 0)).Returns(Task.CompletedTask);
 
             await model.StartAsync(cancellationToken);
             model.Mode = RecordingMode.Audio;
+            model.Format = RecordingFileFormat.Wav;
+            Assert.Equal(RecordingFileFormat.Mp3, model.Format);
             model.SplitRecording = false;
             Assert.Equal(RecordingMode.Meeting, model.Mode);
             Assert.True(model.SplitRecording);
@@ -272,7 +274,7 @@ public sealed partial class RecorderViewModelTests
         CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("de-DE");
         var recorder = new Mock<IRecorder>(MockBehavior.Strict);
         var state = RecorderState.Ready;
-        var saved = new RecordingResult(@"C:\Team meetings #1\Meeting-2026-11-21_10-00-00.wav", 65 * 16000, null, true);
+        var saved = new RecordingResult(@"C:\Team meetings #1\Meeting-2026-11-21_10-00-00.mp3", 65 * 16000, null, true);
         recorder.SetupGet(r => r.Snapshot).Returns(() => TestSnapshot(state, saved));
         recorder.SetupGet(r => r.Elapsed).Returns(() => state == RecorderState.Saved ? RecordingFormat.Duration(saved.Frames).Value :
             state == RecorderState.Recording ? TimeSpan.FromSeconds(38) : TimeSpan.Zero);
@@ -334,6 +336,8 @@ public sealed partial class RecorderViewModelTests
             model.Output.Should().Be(output);
             var splitRecording = Descendants(window).OfType<CheckBox>().Single(c => Equals(c.Content, "Save in 15-minute parts"));
             splitRecording.IsChecked.Should().BeTrue();
+            var format = (ComboBox)window.FindName("FormatSelector");
+            Assert.Equal(RecordingFileFormat.Mp3, format.SelectedValue);
             var title = Descendants(window).OfType<TextBlock>().Single(text => text.Text == "SoundSeal");
             var version = (TextBlock)window.FindName("VersionLabel");
             var build = typeof(MainWindow).Assembly.GetName().Version!;
@@ -371,6 +375,7 @@ public sealed partial class RecorderViewModelTests
             SaveScreenshot(window, "ready");
             var copy = FindButton("Copy link");
             copy.IsVisible.Should().BeFalse();
+            model.SplitRecording = false;
             state = RecorderState.Saved;
             timer.Pulse();
             window.UpdateLayout();
@@ -382,7 +387,7 @@ public sealed partial class RecorderViewModelTests
             copyBottom.Should().BeLessThanOrEqualTo(resultArea.ViewportHeight);
             var single = saved;
             var parts = Enumerable.Range(1, 20).Select(index => new RecordingResult(
-                FormattableString.Invariant($@"C:\Recordings\Meeting-2026-11-21_10-00-00-c81a07b77e-Part-{index:D4}.wav"),
+                FormattableString.Invariant($@"C:\Recordings\Meeting-2026-11-21_10-00-00-c81a07b77e-Part-{index:D4}.mp3"),
                 15L * 60 * RecordingFormat.SampleRate, null, true)).ToArray();
             saved = RecordingResult.CombineParts(parts, null);
             model.SplitRecording = true;
@@ -400,18 +405,20 @@ public sealed partial class RecorderViewModelTests
             var lastCopy = FindVisualButton(item);
             Assert.NotNull(lastCopy);
             lastCopy.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-            Assert.EndsWith("Part-0020.wav", copied, StringComparison.Ordinal);
+            Assert.EndsWith("Part-0020.mp3", copied, StringComparison.Ordinal);
             model.CopyRecordingLink(new RecordingFile(@"C:\Recordings\other.wav"));
-            Assert.EndsWith("Part-0020.wav", copied, StringComparison.Ordinal);
+            Assert.EndsWith("Part-0020.mp3", copied, StringComparison.Ordinal);
             saved = single;
             splitRecording.SetCurrentValue(ToggleButton.IsCheckedProperty, false);
             timer.Pulse();
             Assert.True(window.SingleFileHandle.IsVisible && window.SingleFileHandle.IsEnabled);
             Assert.False(window.AllPartsHandle.IsVisible);
             copy.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-            copied.Should().Be("file:///C:/Team%20meetings%20%231/Meeting-2026-11-21_10-00-00.wav");
+            copied.Should().Be("file:///C:/Team%20meetings%20%231/Meeting-2026-11-21_10-00-00.mp3");
             model.FileActionStatus.Should().Be("Link copied.");
-            var selector = Descendants(window).OfType<ComboBox>().Single(c => c.Items.Count == 2);
+            format.SelectedValue = RecordingFileFormat.Wav;
+            Assert.Equal(RecordingFileFormat.Wav, model.Format);
+            var selector = Descendants(window).OfType<ComboBox>().Single(c => c.ItemsSource == model.Outputs);
             selector.IsDropDownOpen = true;
             selector.UpdateLayout();
             selector.ItemContainerGenerator.ContainerFromIndex(1).Should().BeOfType<ComboBoxItem>();
@@ -433,6 +440,7 @@ public sealed partial class RecorderViewModelTests
                 .Returns(Task.CompletedTask);
             FindButton("Start recording").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             window.Title.Should().Contain("Recording");
+            Assert.False(format.IsEnabled);
             SaveScreenshot(window, "recording");
             var recordingLogo = logo.Source;
             recordingLogo.Should().NotBeNull().And.NotBeSameAs(idleLogo);

@@ -45,7 +45,7 @@ public sealed class MixingTests : IDisposable
     [InlineData(960)]
     public void LoopbackTransportClockShouldNotSetThePcmRate(int transportStep)
     {
-        using var file = WaveDestination.Create(Folder.FullName, DateTime.Now);
+        using var file = FileDestination.Create(Folder.FullName, DateTime.Now);
         var mixer = new IntervalMixer(0, file, _ => { });
         var micFormat = new InputFormat(16000, 1, 16, false, 0);
         var voice = new byte[160 * sizeof(short)];
@@ -88,7 +88,7 @@ public sealed class MixingTests : IDisposable
     [Trait("Category", "Integration")]
     public void MicrophoneDropoutShouldPreserveTheMeeting()
     {
-        using var file = WaveDestination.Create(Folder.FullName, DateTime.Now);
+        using var file = FileDestination.Create(Folder.FullName, DateTime.Now);
         var mixer = new IntervalMixer(0, file, _ => { });
         mixer.Add(Tone(true, 0, 0, 0.3, 800));
         mixer.Add(Tone(false, 0, 0, 0.1, 400));
@@ -162,7 +162,7 @@ public sealed class MixingTests : IDisposable
     [Fact(DisplayName = "Pause trims crossing packets and excludes the entire paused tone")]
     public void ResumeShouldAppendOnlyActiveSamples()
     {
-        using var file = WaveDestination.Create(Folder.FullName, DateTime.Now);
+        using var file = FileDestination.Create(Folder.FullName, DateTime.Now);
         var before = new IntervalMixer(0, file, _ => { });
         before.Add(Tone(false, 0, 49 * SECOND / 10, 0.1, 440));
         before.Add(Tone(true, 0, 5 * SECOND, 0.2, 3000));
@@ -186,7 +186,7 @@ public sealed class MixingTests : IDisposable
     [Fact(DisplayName = "Packets crossing pause and resume boundaries are trimmed by sample time")]
     public void CrossingPacketsShouldExcludePauseOnlySignal()
     {
-        using var file = WaveDestination.Create(Folder.FullName, DateTime.Now);
+        using var file = FileDestination.Create(Folder.FullName, DateTime.Now);
         var first = new IntervalMixer(0, file, _ => { });
         var lastPacket = Tone(false, 0, 9 * SECOND / 10, 0.2, 440);
         var half = lastPacket.Data.Length / 2;
@@ -242,7 +242,7 @@ public sealed class MixingTests : IDisposable
     [InlineData(48000, 44100)]
     public void DeviceDriftShouldKeepMarkersAligned(int micRate, int outputRate)
     {
-        using var file = WaveDestination.Create(Folder.FullName, DateTime.Now);
+        using var file = FileDestination.Create(Folder.FullName, DateTime.Now);
         var mixer = new IntervalMixer(0, file, _ => { });
         var micFormat = new InputFormat(micRate, 1, 16, false, 0);
         var outFormat = new InputFormat(outputRate, 1, 16, false, 0);

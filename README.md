@@ -2,7 +2,7 @@
 
 <img src="src/MeetingRecorder/Assets/SoundSeal.png" width="120" height="120" alt="The SoundSeal seal wearing dark sunglasses and turquoise headphones">
 
-SoundSeal is a simple offline Windows recorder for meetings, audio streams and voice notes. It saves standard WAV files on your computer so you can pass them to an AI tool of your choice for transcription and summarization. You choose the tool and upload the files yourself.
+SoundSeal is a simple offline Windows recorder for meetings, audio streams and voice notes. It saves MP3 or WAV files on your computer so you can pass them to an AI tool of your choice for transcription and summarization. You choose the tool and upload the files yourself.
 
 | Recording mode | Captures | Example |
 | --- | --- | --- |
@@ -14,7 +14,7 @@ SoundSeal is a simple offline Windows recorder for meetings, audio streams and v
 
 | Choose audio sources | Record a meeting |
 | --- | --- |
-| [![SoundSeal ready to record, with selectors for the microphone, playback device, and recording folder](docs/screenshots/ready.png)](docs/screenshots/ready.png) | [![SoundSeal recording, with the elapsed time and active signal meters for both audio sources](docs/screenshots/recording.png)](docs/screenshots/recording.png) |
+| [![SoundSeal ready to record, with MP3 at 48 kbit/s and 15-minute parts selected](docs/screenshots/ready.png)](docs/screenshots/ready.png) | [![SoundSeal recording, in WAV format with active signal meters for both audio sources](docs/screenshots/recording.png)](docs/screenshots/recording.png) |
 
 <details>
 <summary>Check sound before a meeting</summary>
@@ -47,14 +47,14 @@ SoundSeal is a simple offline Windows recorder for meetings, audio streams and v
 <details>
 <summary>Saved recording</summary>
 
-![A saved WAV with its file path, Drag WAV handle and Copy link button](docs/screenshots/saved.png)
+![A saved MP3 with its file path, Drag file handle and Copy link button](docs/screenshots/saved.png)
 
 </details>
 
 <details>
 <summary>Recording saved in 15-minute parts</summary>
 
-![A list of 20 WAV parts with a Drag all parts handle and a Copy link action on each row](docs/screenshots/parts.png)
+![A list of 20 MP3 parts with a Drag all parts handle and a Copy link action on each row](docs/screenshots/parts.png)
 
 </details>
 
@@ -76,24 +76,32 @@ After building, you can launch `src\MeetingRecorder\bin\Release\net10.0-windows\
 1. Choose **Meeting** for microphone and playback, **Computer audio** for playback only, or **Dictaphone** for microphone only. SoundSeal opens only the devices needed for that mode. Filenames begin with `Meeting-`, `Audio-` or `Dictaphone-`.
    Choose the microphone or playback device required for your mode. For a meeting, select the headphones or speakers you use to hear the other participants. SoundSeal initially selects the Windows defaults and keeps your selected devices for the entire recording, including pauses.
    Before recording, click **Check sound** and then **Start check**. In Meeting and Computer audio modes, a short tone plays on the selected output to test loopback. In Meeting and Dictaphone modes, speak for five seconds to test your microphone. Each source shows its peak level and whether a signal was detected. Click **Listen to sample** to hear the captured mix. Dictaphone plays the sample on the Windows default output. **Check again** repeats the test. Closing the dialog releases the devices and discards the sample, which is held only in memory.
-2. Check **Recording folder**. The default is `%LOCALAPPDATA%\MeetingRecorder\Recordings`. Enter a path or click **Browse…** to choose a folder. In the full window, **Open folder** is available from startup and opens the recording folder in File Explorer. SoundSeal creates the selected folder the first time you open it or start a recording.
-3. Click **Start recording**. The seal's glasses glow while recording is active, and a red dot appears beside **Recording**. Speak into the microphone, then check the other meter when someone on the call speaks. Each meter shows **Signal detected** or **Silent**. **Elapsed time** keeps counting during silence.
-4. Click **Pause** to leave a break out of the file. Both meters show **Paused** and the timer stops. Click **Resume** to continue recording to the same file.
-5. Click **Finish recording**. When the status changes to **Saved**, the window shows the duration and full file path. Drag the WAV into a file drop area, click **Copy link** to copy a `file://` link, or click **Open folder** to find it in File Explorer. Anyone using the link needs access to the same file location. If you close the window during a recording, choose **Finish and exit** to save it or **Return to recorder** to keep the session open.
+2. Choose **File format**. The default is **MP3 (48 kbit/s)** for speech. Choose **WAV (PCM)** for uncompressed audio. Both formats work in all three recording modes. The selection applies to the whole recording, including pauses and all its parts.
+3. Check **Recording folder**. The default is `%LOCALAPPDATA%\MeetingRecorder\Recordings`. Enter a path or click **Browse…** to choose a folder. In the full window, **Open folder** is available from startup and opens the recording folder in File Explorer. SoundSeal creates the selected folder the first time you open it or start a recording.
+4. Click **Start recording**. The seal's glasses glow while recording is active, and a red dot appears beside **Recording**. Speak into the microphone, then check the other meter when someone on the call speaks. Each meter shows **Signal detected** or **Silent**. **Elapsed time** keeps counting during silence.
+5. Click **Pause** to leave a break out of the file. Both meters show **Paused** and the timer stops. Click **Resume** to continue recording to the same file.
+6. Click **Finish recording**. When the status changes to **Saved**, the window shows the duration and full file path. Drag the file into a file drop area, click **Copy link** to copy a `file://` link, or click **Open folder** to find it in File Explorer. Anyone using the link needs access to the same file location. If you close the window during a recording, choose **Finish and exit** to save it or **Return to recorder** to keep the session open.
 
-During a recording or pause, click **Compact view** to keep the timer, status and controls above your call window. Drag the timer to move the compact window. **Stop** pauses the current recording and **Start** resumes it. **Full view** restores your original window while the session continues. **Finish** immediately returns to the full window, where you can see the saved WAV or the list of parts.
+During a recording or pause, click **Compact view** to keep the timer, status and controls above your call window. Drag the timer to move the compact window. **Stop** pauses the current recording and **Start** resumes it. **Full view** restores your original window while the session continues. **Finish** immediately returns to the full window, where you can see the saved file or the list of parts.
 
-**Save in 15-minute parts** is selected by default in all recording modes. SoundSeal saves a separate WAV after every 15 minutes of captured audio. Pauses stop the part clock. Finishing saves the remaining audio, and the result list shows the parts in order with a **Copy link** action on each row. Files in one session share a name prefix and use suffixes such as `Part-0001.wav` and `Part-0002.wav`.
+**Save in 15-minute parts** is selected by default in all recording modes. SoundSeal saves a separate file in the selected format after every 15 minutes of captured audio. Pauses stop the part clock. Finishing saves the remaining audio, and the result list shows the parts in order with a **Copy link** action on each row. Files in one session share a name prefix and use suffixes such as `Part-0001.mp3` and `Part-0002.mp3`.
 
-Completed parts can be opened while recording continues. SoundSeal writes and flushes each WAV header and closes the file before publishing the final name. After an abrupt shutdown, completed parts remain in the recording folder. The open part can remain as a `.partial` file. To save the whole recording as one WAV, clear **Save in 15-minute parts** before starting.
+Completed parts can be opened while recording continues. SoundSeal finalizes and closes each part before publishing the final name. After an abrupt shutdown, completed parts remain in the recording folder. The open part can remain as a `.partial` file. To save the whole recording as one file, clear **Save in 15-minute parts** before starting.
 
-SoundSeal saves one mono track as 16-bit PCM audio at 16,000 Hz. One hour of active recording uses about 115.2 MB. Filenames include the start time, for example `Meeting-2026-11-21_14-35-08.wav`. If a name is already in use, SoundSeal adds a numeric suffix.
+Both formats use a single 16 kHz mono track. SoundSeal encodes MP3 directly to disk with the Windows Media Foundation encoder. MP3 players may report a slightly longer duration because of encoder padding. SoundSeal measures the 15-minute boundary using the captured audio.
+
+| File format | Approximate size per 15 minutes | Approximate size per hour |
+| --- | ---: | ---: |
+| MP3, 48 kbit/s (default) | 5.4 MB | 21.6 MB |
+| WAV, 16-bit PCM | 28.8 MB | 115.2 MB |
+
+Filenames include the start time, for example `Meeting-2026-11-21_14-35-08.mp3`. If a name is already in use, SoundSeal adds a numeric suffix.
 
 ## Transcribe and summarize
 
-After finishing, drag the file path or **Drag WAV** from SoundSeal into your transcription tool’s upload area. For a split meeting, drag **Drag all parts** to pass every saved WAV in part-number order in one gesture, or drag a part by its filename to upload it individually. The destination must accept file drops and support multiple files for a batch. You can also drop the files into a File Explorer folder to copy them. The original WAVs stay in the recording folder.
+After finishing, drag the file path or **Drag file** from SoundSeal into your transcription tool’s upload area. For a split meeting, drag **Drag all parts** to pass every saved file in part-number order in one gesture, or drag a part by its filename to upload it individually. The destination must accept file drops and support multiple files for a batch. You can also drop the files into a File Explorer folder to copy them. The original recordings stay in the recording folder.
 
-If your tool uses a file picker, click **Open folder** in SoundSeal to locate the recordings, then select the same WAV files in the tool’s upload dialog. For a split meeting, ask the AI to summarize the combined transcript and list decisions, action items and open questions. **Copy link** copies a local file URI suitable for an application with access to that folder. Use the WAV upload option for a web service.
+If your tool uses a file picker, click **Open folder** in SoundSeal to locate the recordings, then select the same audio files in the tool’s upload dialog. For a split meeting, ask the AI to summarize the combined transcript and list decisions, action items and open questions. **Copy link** copies a local file URI suitable for an application with access to that folder. Use the audio file upload option for a web service.
 
 ## Troubleshooting
 
@@ -106,8 +114,8 @@ When reporting a recording issue, include the version shown below **SoundSeal** 
 | Recording stops immediately with a device discontinuity when a Bluetooth call starts | Use SoundSeal 3.1.7 or later. During a call, a Sony WH-1000XM5 can flag a microphone packet after a brief gap. SoundSeal resumes at the next reliable timestamp and leaves silence in the missing portion of that source. It also handles the headset’s 48 kHz playback samples and 16 kHz device counter. |
 | A device is missing or busy | Connect the device or close the app using it in exclusive mode, then click **Refresh devices**. |
 | You hear the other participant twice in the recording | Sound from the speakers can reach the microphone. A headset reduces this echo. |
-| **Error** appears after a device disconnects or the recorder is overloaded | Read the message below **Recording folder**. If SoundSeal saved part of the recording, the message shows the WAV file path. Check the devices before clicking **Start recording** again. |
-| A disk error occurs or SoundSeal cannot finish writing the file | Check free disk space and write access to the folder. If SoundSeal kept an unfinished file, the window shows its `.wav.partial` path. It may contain audio data with an incomplete WAV header. |
+| **Error** appears after a device disconnects or the recorder is overloaded | Read the message below **Recording folder**. If SoundSeal saved part of the recording, the message shows the saved file path. Check the devices before clicking **Start recording** again. |
+| A disk error occurs or SoundSeal cannot finish writing the file | Check free disk space and write access to the folder. If SoundSeal kept an unfinished file, the window shows its `.mp3.partial` or `.wav.partial` path. It may contain incomplete audio. |
 
 ## Testing
 
@@ -136,12 +144,13 @@ The same Release coverage script was run on each revision. Percentages combine l
 | v3.2.0 | 168 | 1455 / 1606 (90.6%) | 759 / 811 (93.6%) |
 | v3.3.0 | 173 | 1583 / 1808 (87.6%) | 825 / 908 (90.9%) |
 | v3.4.0 | 174 | 1603 / 1823 (87.9%) | 830 / 912 (91.0%) |
+| v3.5.0 | 183 | 1711 / 1940 (88.2%) | 854 / 941 (90.8%) |
 
 The v2.0.0 domain suite and integration tests together exercise all 227 executable domain lines and all 96 domain branches. The full suite covers invalid value construction, immutable device and folder listings, cancellation before and during device startup, retry after cleanup, and publication after late cancellation.
 
-The four test projects cover recorder states, timing, the WPF window, mixing synthetic audio sources, and the contents of saved WAV files. The clock-drift tests simulate 44.1 kHz and 48 kHz devices with 100 ppm of relative drift over an hour. Once the dependencies are restored, the tests can run offline without a sound card.
+The four test projects cover recorder states, timing, the WPF window, mixing synthetic audio sources, and the contents of saved MP3 and WAV files. The clock-drift tests simulate 44.1 kHz and 48 kHz devices with 100 ppm of relative drift over an hour. Once the dependencies are restored, the tests can run offline without a sound card.
 
-To check real hardware, record both sides of a call, try a different playback device, pause and resume, then listen to the result. In a separate short recording, disconnect the selected headset and play the saved segment. For an hour-long call, check the start and end of the audio and compare the WAV duration with the recorder's timer. You can also repeat a short recording offline.
+To check real hardware, record both sides of a call, try a different playback device, pause and resume, then listen to the result. In a separate short recording, disconnect the selected headset and play the saved segment. For an hour-long call, check the start and end of the audio and compare the file duration with the recorder's timer. You can also repeat a short recording offline.
 
 ## Architecture
 
@@ -153,10 +162,10 @@ SoundSeal follows the layer boundaries and build conventions used in DayScope at
 | `MeetingRecorder.Abstractions` | Recorder, capture session, clock, device catalog, PCM sink, recording store, folder and display timer contracts | Domain |
 | `MeetingRecorder.Application` | Serializes start, pause, resume and finish, reconciles capture failures with the final file outcome | Abstractions, Domain |
 | `MeetingRecorder.Infrastructure` | Negotiates WASAPI formats, owns native buffers, aligns device clocks, resamples and mixes the two sources | Abstractions, Domain |
-| `MeetingRecorder.Storage` | Reserves temporary files, writes and publishes WAV files, enumerates folders and opens File Explorer | Abstractions, Domain |
+| `MeetingRecorder.Storage` | Reserves temporary files, encodes MP3 with Windows Media Foundation and writes PCM WAV files, enumerates folders and opens File Explorer | Abstractions, Domain |
 | `MeetingRecorder` | WPF window, view models, clipboard, dispatcher timer and dependency injection | All five libraries |
 
-The native buffer and endpoint interfaces live beside the WASAPI adapter because their signatures use native flags and audio packets. The mixer writes to `IPcmSink`. Its unit tests inspect samples in memory, while integration tests reopen WAV files and check headers, payloads, pause boundaries and partial-file recovery.
+The native buffer and endpoint interfaces live beside the WASAPI adapter because their signatures use native flags and audio packets. The mixer writes to `IPcmSink`. Its unit tests inspect samples in memory, while integration tests reopen WAV files and check headers, payloads, pause boundaries and partial-file recovery. MP3 integration tests check the encoded frame headers, bitrate, playback and independent parts.
 
 ### Domain contracts
 
@@ -171,7 +180,7 @@ The native buffer and endpoint interfaces live beside the WASAPI adapter because
 
 ### Capture configuration
 
-Edit the `AudioCapture` section in `appsettings.json` beside `SoundSeal.exe` and restart the application. Configuration is validated when the host builds. These limits apply to incoming device formats. Output remains 16 kHz mono PCM16.
+Edit the `AudioCapture` section in `appsettings.json` beside `SoundSeal.exe` and restart the application. Configuration is validated when the host builds. These limits apply to incoming device formats. The mixer supplies 16 kHz mono PCM16 to the selected file encoder.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
@@ -184,7 +193,7 @@ Edit the `AudioCapture` section in `appsettings.json` beside `SoundSeal.exe` and
 
 The user starts and stops each capture interval. Its single native thread acquires and releases WASAPI buffers on the same thread. An asynchronous channel reader mixes owned copies and feeds the destination. The WPF dispatcher timer only refreshes the display. A host-lifetime background service would outlive these recording intervals. [WASAPI buffer ownership](https://learn.microsoft.com/en-us/windows/win32/api/audioclient/nf-audioclient-iaudiocaptureclient-getbuffer) · [WPF threading model](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/threading-model) · [.NET worker services](https://learn.microsoft.com/en-us/dotnet/core/extensions/workers)
 
-Asynchronous service methods require a `CancellationToken`. Device discovery, navigation, pending commands and interval startup observe the caller's token. Canceling startup releases the endpoints and discards an empty reservation. If any samples were captured, the writer attempts to publish them. Once the recorder accepts a pause or finish, a session-owned token lets it drain accepted samples and finish the WAV header even if the originating UI command is canceled. Each asynchronous xUnit test runs with its own cancellable deadline.
+Asynchronous service methods require a `CancellationToken`. Device discovery, navigation, pending commands and interval startup observe the caller's token. Canceling startup releases the endpoints and discards an empty reservation. If any samples were captured, the writer attempts to publish them. Once the recorder accepts a pause or finish, a session-owned token lets it drain accepted samples and finalize the audio file even if the originating UI command is canceled. Each asynchronous xUnit test runs with its own cancellable deadline.
 
 Public types and members have XML documentation, which the build emits beside each assembly. Members are grouped by constants and fields, constructors, events, properties, methods, and nested types. The shared `.editorconfig` and `Directory.Build.props` enable code-style analysis and treat warnings as errors.
 
