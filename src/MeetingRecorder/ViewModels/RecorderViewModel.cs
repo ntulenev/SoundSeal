@@ -65,7 +65,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
                 _ = SetProperty(ref field, value);
             }
         }
-    }
+    } = true;
 
     /// <summary>Whether this mode includes the microphone.</summary>
     public bool UsesMicrophone => Mode != RecordingMode.Audio;

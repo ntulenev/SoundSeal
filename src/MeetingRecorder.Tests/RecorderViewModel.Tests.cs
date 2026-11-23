@@ -52,7 +52,7 @@ public sealed partial class RecorderViewModelTests
             await model.RefreshDevicesAsync(cancellationToken);
             model.Output.Should().Be(output);
             model.CanStart.Should().BeTrue();
-            model.SplitRecording = true;
+            model.SplitRecording.Should().BeTrue();
             recorder.Setup(r => r.StartAsync(new RecordingSettings("mic", "out", model.Folder, RecordingMode.Meeting, RecordingLayout.QuarterHourParts), It.Is<CancellationToken>(t => t.CanBeCanceled)))
                 .Callback(() => snapshot = new(RecorderState.Recording, started: 0)).Returns(Task.CompletedTask);
 
@@ -332,6 +332,8 @@ public sealed partial class RecorderViewModelTests
 
             model.Microphone.Should().Be(microphone);
             model.Output.Should().Be(output);
+            var splitRecording = Descendants(window).OfType<CheckBox>().Single(c => Equals(c.Content, "Save in 15-minute parts"));
+            splitRecording.IsChecked.Should().BeTrue();
             var title = Descendants(window).OfType<TextBlock>().Single(text => text.Text == "SoundSeal");
             var version = (TextBlock)window.FindName("VersionLabel");
             var build = typeof(MainWindow).Assembly.GetName().Version!;
@@ -402,7 +404,7 @@ public sealed partial class RecorderViewModelTests
             model.CopyRecordingLink(new RecordingFile(@"C:\Recordings\other.wav"));
             Assert.EndsWith("Part-0020.wav", copied, StringComparison.Ordinal);
             saved = single;
-            model.SplitRecording = false;
+            splitRecording.SetCurrentValue(ToggleButton.IsCheckedProperty, false);
             timer.Pulse();
             Assert.True(window.SingleFileHandle.IsVisible && window.SingleFileHandle.IsEnabled);
             Assert.False(window.AllPartsHandle.IsVisible);
