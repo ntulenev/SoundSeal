@@ -83,9 +83,9 @@ After building, you can launch `src\MeetingRecorder\bin\Release\net10.0-windows\
 
 During a recording or pause, click **Compact view** to keep the timer, status and controls above your call window. Drag the timer to move the compact window. **Stop** pauses the current recording and **Start** resumes it. **Full view** restores your original window while the session continues. **Finish** immediately returns to the full window, where you can see the saved WAV or the list of parts.
 
-Enable **Save in 15-minute parts** before starting a long recording to publish an independent WAV after every 15 minutes of captured audio. All modes support this option. Pauses stop the part clock. Finishing saves the remaining audio, and the result list shows the parts in order with a **Copy link** action on each row. Files in one session share a name prefix and use suffixes such as `Part-0001.wav` and `Part-0002.wav`.
+**Save in 15-minute parts** is selected by default in all recording modes. SoundSeal saves a separate WAV after every 15 minutes of captured audio. Pauses stop the part clock. Finishing saves the remaining audio, and the result list shows the parts in order with a **Copy link** action on each row. Files in one session share a name prefix and use suffixes such as `Part-0001.wav` and `Part-0002.wav`.
 
-Completed parts can be opened while recording continues. SoundSeal writes and flushes each WAV header and closes the file before publishing the final name. After an abrupt shutdown, completed parts remain in the recording folder. The open part can remain as a `.partial` file. Leave the option off to publish a single WAV at the end.
+Completed parts can be opened while recording continues. SoundSeal writes and flushes each WAV header and closes the file before publishing the final name. After an abrupt shutdown, completed parts remain in the recording folder. The open part can remain as a `.partial` file. To save the whole recording as one WAV, clear **Save in 15-minute parts** before starting.
 
 SoundSeal saves one mono track as 16-bit PCM audio at 16,000 Hz. One hour of active recording uses about 115.2 MB. Filenames include the start time, for example `Meeting-2026-11-21_14-35-08.wav`. If a name is already in use, SoundSeal adds a numeric suffix.
 
