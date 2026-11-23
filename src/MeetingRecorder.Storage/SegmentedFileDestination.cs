@@ -4,23 +4,26 @@ using MeetingRecorder.Domain;
 namespace MeetingRecorder.Storage;
 
 /// <summary>Seals each full part on the mixer worker while native capture continues feeding its queue.</summary>
-internal sealed class SegmentedWaveDestination : IRecordingDestination
+internal sealed class SegmentedFileDestination : IRecordingDestination
 {
     private readonly RecordingFolder _folder;
     private readonly string _stem;
     private readonly FrameCount _limit;
+    private readonly RecordingFileFormat _format;
     private readonly List<RecordingResult> _parts = [];
-    private WaveDestination? _current;
+    private FileDestination? _current;
     private RecordingProblem? _failure;
     private bool _closed;
 
     /// <summary>Reserves the first part so folder and write errors are reported before device startup.</summary>
-    internal SegmentedWaveDestination(RecordingFolder folder, RecordingMode mode, DateTime start, FrameCount limit)
+    internal SegmentedFileDestination(RecordingFolder folder, RecordingMode mode, DateTime start, FrameCount limit,
+        RecordingFileFormat format = RecordingFileFormat.Wav)
     {
         ArgumentNullException.ThrowIfNull(folder);
         ArgumentOutOfRangeException.ThrowIfZero(limit.Value);
         _folder = folder;
         _limit = limit;
+        _format = format;
         var session = Guid.NewGuid().ToString("N")[..10];
         _stem = FormattableString.Invariant($"{mode}-{start:yyyy-MM-dd_HH-mm-ss}-{session}");
         _current = OpenNextPart();
@@ -93,8 +96,8 @@ internal sealed class SegmentedWaveDestination : IRecordingDestination
         _current?.Dispose();
     }
 
-    private WaveDestination OpenNextPart() => WaveDestination.Reserve(_folder,
-        FormattableString.Invariant($"{_stem}-Part-{_parts.Count + 1:D4}"));
+    private FileDestination OpenNextPart() => FileDestination.Reserve(_folder,
+        FormattableString.Invariant($"{_stem}-Part-{_parts.Count + 1:D4}"), _format);
 
     private RecordingResult SealCurrent(EmptyRecordingPolicy policy)
     {

@@ -43,7 +43,7 @@ public sealed class CaptureSessionTests : IDisposable
             var handles = new Queue<TestEndpoint>([mic, output, resumedMic, resumedOutput]);
             var opened = new List<string>();
             var settings = new RecordingSettings("selected mic", "alternate output", _folder.FullName);
-            using var file = WaveDestination.Create(_folder.FullName, DateTime.Now);
+            using var file = FileDestination.Create(_folder.FullName, DateTime.Now);
             using var session = new CaptureSession(settings, clock.Object, file, (id, _) =>
             {
                 opened.Add(id.Value);
@@ -154,7 +154,7 @@ public sealed class CaptureSessionTests : IDisposable
     public Task QueueOverflowShouldInterrupt() =>
         TestDeadline.Run(async cancellationToken =>
         {
-            using var file = WaveDestination.Create(_folder.FullName, DateTime.Now);
+            using var file = FileDestination.Create(_folder.FullName, DateTime.Now);
             using var stalled = new ManualResetEventSlim();
             var fault = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             using var mic = new TestEndpoint();
@@ -182,13 +182,13 @@ public sealed class CaptureSessionTests : IDisposable
     public void FileCollisionShouldChooseSuffix()
     {
         var now = DateTime.Now;
-        using var first = WaveDestination.Create(_folder.FullName, now);
-        using var next = WaveDestination.Create(_folder.FullName, now);
+        using var first = FileDestination.Create(_folder.FullName, now);
+        using var next = FileDestination.Create(_folder.FullName, now);
         var a = first.Complete(EmptyRecordingPolicy.Keep, null);
         var b = next.Complete(EmptyRecordingPolicy.Keep, null);
         a.Path.Should().NotBe(b.Path);
         b.Path!.Value.Should().EndWith("-1.wav");
-        using var third = WaveDestination.Create(_folder.FullName, now);
+        using var third = FileDestination.Create(_folder.FullName, now);
         third.Complete(EmptyRecordingPolicy.Keep, null).Path!.Value.Should().EndWith("-2.wav");
     }
 
@@ -197,7 +197,7 @@ public sealed class CaptureSessionTests : IDisposable
     [Fact(DisplayName = "Failed publication preserves the unfinished file and existing destination")]
     public void PublicationFailureShouldPreservePartial()
     {
-        using var writer = WaveDestination.Create(_folder.FullName, DateTime.Now);
+        using var writer = FileDestination.Create(_folder.FullName, DateTime.Now);
         writer.Append(new Pcm16Block([1, 2, 3, 4]));
         var final = Path.ChangeExtension(_folder.GetFiles().Single().FullName, null);
         File.WriteAllText(final, "existing file");
@@ -324,7 +324,7 @@ public sealed class CaptureSessionTests : IDisposable
             clock.SetupGet(c => c.Now).Returns(() => Interlocked.Read(ref now));
             using var mic = new TestEndpoint { NextPacket = MixingTests.Tone(false, 0, 0, 0.1, 440) };
             using var output = new TestEndpoint();
-            using var file = WaveDestination.Create(_folder.FullName, DateTime.Now);
+            using var file = FileDestination.Create(_folder.FullName, DateTime.Now);
             using var session = new CaptureSession(new("m", "o", _folder.FullName), clock.Object,
                 file, (_, loopback) => loopback ? output : mic);
 
@@ -545,7 +545,7 @@ public sealed class CaptureSessionTests : IDisposable
         var opens = 0;
         var mode = RecordingMode.Dictaphone;
         var settings = new RecordingSettings("mic", null, _folder.FullName, mode, RecordingLayout.QuarterHourParts);
-        using var file = new SegmentedWaveDestination(settings.Folder, mode, DateTime.Now, 8);
+        using var file = new SegmentedFileDestination(settings.Folder, mode, DateTime.Now, 8);
         using var session = new CaptureSession(settings, clock.Object, file, (_, _) =>
         {
             Interlocked.Increment(ref opens);
@@ -637,7 +637,7 @@ public sealed class CaptureSessionTests : IDisposable
         Justification = "CaptureSession owns and disposes the destination returned here.")]
     private CaptureSession Create(TestEndpoint mic, TestEndpoint output) =>
         new(new("mic", "out", _folder.FullName), _clock,
-            WaveDestination.Create(_folder.FullName, DateTime.Now),
+            FileDestination.Create(_folder.FullName, DateTime.Now),
             (_, loopback) => loopback ? output : mic);
 
     private sealed class TestEndpoint : IInputEndpoint

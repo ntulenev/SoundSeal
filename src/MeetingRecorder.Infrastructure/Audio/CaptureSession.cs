@@ -3,7 +3,7 @@ using MeetingRecorder.Domain;
 
 namespace MeetingRecorder.Infrastructure.Audio;
 
-/// <summary>Owns the temporary WAV across pauses and resets the independent peak holds.</summary>
+/// <summary>Owns the recording destination across pauses and resets the independent peak holds.</summary>
 internal sealed class CaptureSession : ICaptureSession
 {
     private const long HOLD = TimeSpan.TicksPerMillisecond * 180;

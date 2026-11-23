@@ -24,7 +24,7 @@ public enum RecorderState
     /// <summary>Finalizing the output file.</summary>
     Saving,
 
-    /// <summary>The final WAV is available.</summary>
+    /// <summary>The final recording is available.</summary>
     Saved,
 
     /// <summary>Recording or publication was interrupted.</summary>

@@ -1,13 +1,13 @@
 namespace MeetingRecorder.Domain;
 
-/// <summary>Outcome of WAV publication.</summary>
+/// <summary>Outcome of file publication.</summary>
 public sealed record RecordingResult
 {
-    /// <summary>Creates a validated outcome of WAV publication.</summary>
-    /// <param name="path">Location of the published WAV or a retained partial file.</param>
+    /// <summary>Creates a validated outcome of file publication.</summary>
+    /// <param name="path">Location of the published file or a retained partial file.</param>
     /// <param name="frames">Number of complete mono frames written.</param>
     /// <param name="problem">Interruption or storage error to show to the user.</param>
-    /// <param name="published">Whether the final WAV name was published.</param>
+    /// <param name="published">Whether the final filename was published.</param>
     public RecordingResult(RecordingFile? path, FrameCount frames, RecordingProblem? problem, bool published)
     {
         if (published)
@@ -27,7 +27,7 @@ public sealed record RecordingResult
         PublishedFiles = published ? [path!] : [];
     }
 
-    /// <summary>Location of the published WAV or a retained partial file.</summary>
+    /// <summary>Location of the published file or a retained partial file.</summary>
     public RecordingFile? Path { get; }
 
     /// <summary>Number of complete mono frames written.</summary>
@@ -39,10 +39,10 @@ public sealed record RecordingResult
     /// <summary>Whether the file was published without any interruption.</summary>
     public bool IsSuccessful => Published && Problem is null;
 
-    /// <summary>Whether the final WAV name was published.</summary>
+    /// <summary>Whether the final filename was published.</summary>
     public bool Published { get; }
 
-    /// <summary>All independently playable WAV files, in recording order.</summary>
+    /// <summary>All independently playable audio files, in recording order.</summary>
     public IReadOnlyList<RecordingFile> PublishedFiles { get; private init; }
 
     /// <summary>Compares the session outcome and ordered file links by value.</summary>

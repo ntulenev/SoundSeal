@@ -51,7 +51,7 @@ public sealed class SegmentedRecordingTests : IDisposable
     public Task PartsRoundTripWithoutDroppedOrDuplicatedSamples(int frames, int expectedFiles) =>
         TestDeadline.Run(async token =>
         {
-            using var writer = new SegmentedWaveDestination(_folder.FullName, RecordingMode.Dictaphone, DateTime.Now, 3);
+            using var writer = new SegmentedFileDestination(_folder.FullName, RecordingMode.Dictaphone, DateTime.Now, 3);
             var data = Enumerable.Range(1, frames * 2).Select(i => (byte)i).ToArray();
             writer.Append(new Pcm16Block(data.AsSpan(0, 2)));
             writer.Append(new Pcm16Block(data.AsSpan(2)));
@@ -75,7 +75,7 @@ public sealed class SegmentedRecordingTests : IDisposable
     [Fact(DisplayName = "A failed rollover cannot overwrite a completed part or replay its input block")]
     public Task FailedRolloverKeepsCommittedParts() => TestDeadline.Run(async token =>
     {
-        using var writer = new SegmentedWaveDestination(_folder.FullName, RecordingMode.Meeting, DateTime.Now, 2);
+        using var writer = new SegmentedFileDestination(_folder.FullName, RecordingMode.Meeting, DateTime.Now, 2);
         writer.Append(new Pcm16Block([1, 0, 2, 0, 3, 0]));
         var partial = Assert.Single(_folder.GetFiles("*.partial")).FullName;
         var collision = Path.ChangeExtension(partial, null);
@@ -96,7 +96,7 @@ public sealed class SegmentedRecordingTests : IDisposable
     [Fact(DisplayName = "An empty segmented session can retry canceled finalization and discard the reservation")]
     public Task CanceledCompletionMayBeRetried() => TestDeadline.Run(async token =>
     {
-        using var writer = new SegmentedWaveDestination(_folder.FullName, RecordingMode.Meeting, DateTime.Now, 3);
+        using var writer = new SegmentedFileDestination(_folder.FullName, RecordingMode.Meeting, DateTime.Now, 3);
         using var canceled = CancellationTokenSource.CreateLinkedTokenSource(token);
         await canceled.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => writer.CompleteAsync(EmptyRecordingPolicy.Keep, null, canceled.Token));
@@ -113,7 +113,7 @@ public sealed class SegmentedRecordingTests : IDisposable
     public Task FailedReservationKeepsEarlierLinks() => TestDeadline.Run(async token =>
     {
         var location = _folder.CreateSubdirectory("recordings").FullName;
-        using var writer = new SegmentedWaveDestination(location, RecordingMode.Audio, DateTime.Now, 2);
+        using var writer = new SegmentedFileDestination(location, RecordingMode.Audio, DateTime.Now, 2);
         writer.Append(new Pcm16Block([1, 0, 2, 0]));
         var moved = Path.Combine(_folder.FullName, "offline");
         Directory.Move(location, moved);
