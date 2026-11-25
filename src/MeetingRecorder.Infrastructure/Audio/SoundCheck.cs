@@ -2,6 +2,8 @@ using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
 using MeetingRecorder.Infrastructure.Wasapi;
 
+using Microsoft.Extensions.Logging;
+
 namespace MeetingRecorder.Infrastructure.Audio;
 
 /// <summary>Runs the normal capture pipeline against a bounded in-memory destination.</summary>
@@ -11,19 +13,21 @@ internal sealed class SoundCheck : ISoundCheck
     private readonly Func<EndpointId, bool, IInputEndpoint> _open;
     private readonly Func<EndpointId, CancellationToken, Task> _tone;
     private readonly int _capacity;
+    private readonly ILogger<CaptureInterval>? _logger;
 
-    public SoundCheck(IRecordingClock clock, AudioCaptureOptions options)
+    public SoundCheck(IRecordingClock clock, AudioCaptureOptions options, ILogger<CaptureInterval>? logger = null)
         : this(clock, (id, loopback) => WasapiEndpoint.Open(id, loopback, options), SoundCheckPlayback.ToneAsync,
-            options.QueueCapacity)
+            options.QueueCapacity, logger)
     { }
 
     internal SoundCheck(IRecordingClock clock, Func<EndpointId, bool, IInputEndpoint> open,
-        Func<EndpointId, CancellationToken, Task> tone, int capacity)
+        Func<EndpointId, CancellationToken, Task> tone, int capacity, ILogger<CaptureInterval>? logger = null)
     {
         _clock = clock;
         _open = open;
         _tone = tone;
         _capacity = capacity;
+        _logger = logger;
     }
 
     public async Task<byte[]> CaptureAsync(EndpointId? microphone, EndpointId? output, IProgress<Levels> peaks,
@@ -52,7 +56,7 @@ internal sealed class SoundCheck : ISoundCheck
 
         // StopAsync owns shutdown and drains the mixer even when the dialog cancels startup.
         var interval = new CaptureInterval(microphone, output, _clock, _open, sample, Report,
-            problem => interrupted.TrySetResult(problem), _capacity, CancellationToken.None);
+            problem => interrupted.TrySetResult(problem), _capacity, CancellationToken.None, _logger);
         try
         {
             _ = await interval.Started.WaitAsync(cancellationToken).ConfigureAwait(false);

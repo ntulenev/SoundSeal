@@ -4,22 +4,27 @@ using System.Runtime.InteropServices;
 using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
 
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace MeetingRecorder.Storage;
 
 /// <summary>Reserves a unique path, counts captured frames and publishes a completed file.</summary>
-internal abstract class FileDestination : IRecordingDestination
+internal abstract partial class FileDestination : IRecordingDestination
 {
     private readonly RecordingFile _temporary;
     private readonly RecordingFile _final;
+    private readonly ILogger _logger;
     private bool _writeFailed;
     private bool _closed;
 
-    protected FileDestination(RecordingFile temporary, RecordingFile final)
+    protected FileDestination(RecordingFile temporary, RecordingFile final, ILogger? logger)
     {
         ArgumentNullException.ThrowIfNull(temporary);
         ArgumentNullException.ThrowIfNull(final);
         _temporary = temporary;
         _final = final;
+        _logger = logger ?? NullLogger.Instance;
     }
 
     internal FrameCount Frames { get; private set; }
@@ -56,15 +61,15 @@ internal abstract class FileDestination : IRecordingDestination
 
     /// <summary>Reserves the file for a single recording.</summary>
     internal static FileDestination Create(RecordingFolder folder, DateTime localTime, RecordingMode mode = RecordingMode.Meeting,
-        RecordingFileFormat format = RecordingFileFormat.Wav)
+        RecordingFileFormat format = RecordingFileFormat.Wav, ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(folder);
         var name = mode + "-" + localTime.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
-        return Reserve(folder, name, format);
+        return Reserve(folder, name, format, logger);
     }
 
     /// <summary>Reserves a unique sibling for a storage-generated filename stem.</summary>
-    internal static FileDestination Reserve(RecordingFolder folder, string name, RecordingFileFormat format)
+    internal static FileDestination Reserve(RecordingFolder folder, string name, RecordingFileFormat format, ILogger? logger = null)
     {
         try
         {
@@ -109,10 +114,10 @@ internal abstract class FileDestination : IRecordingDestination
 
                         // Media Foundation opens the reserved path using its own file handle.
                         stream.Dispose();
-                        return new Mp3Destination(temp, final);
+                        return new Mp3Destination(temp, final, logger);
                     }
 
-                    var destination = new WaveDestination(stream, temp, final);
+                    var destination = new WaveDestination(stream, temp, final, logger);
                     destination.WriteHeader();
                     return destination;
                 }
@@ -158,13 +163,14 @@ internal abstract class FileDestination : IRecordingDestination
         catch (Exception ex) when (IsFileError(ex))
         {
             // Dispose can itself fail while flushing a full or disconnected disk.
+            LogFileFailure(_logger, ex, "Finalize", _temporary.Value, _final.Value, Frames.Value);
             try
             {
                 CloseFile();
             }
             catch (Exception closeError) when (IsFileError(closeError))
             {
-                // Preserve any bytes already on disk for recovery.
+                LogFileFailure(_logger, closeError, "Close", _temporary.Value, _final.Value, Frames.Value);
             }
 
             return new(File.Exists(_temporary.Value) ? _temporary : null, Frames,
@@ -172,6 +178,10 @@ internal abstract class FileDestination : IRecordingDestination
                 "The recording could not be finalized or published.", false);
         }
     }
+
+    [LoggerMessage(1, LogLevel.Error, "File operation {Operation} failed. Temporary file={TemporaryPath}, target={FinalPath}, accepted frames={Frames}.")]
+    private static partial void LogFileFailure(ILogger logger, Exception exception, string operation,
+        string temporaryPath, string finalPath, long frames);
 
     protected abstract void WriteBlock(Pcm16Block block);
 

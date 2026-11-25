@@ -41,7 +41,7 @@ internal sealed class AudioCaptureOptions
     /// <summary>Largest accepted native source channel count.</summary>
     internal int MaximumChannels { get; }
 
-    /// <summary>Maximum number of pending capture messages before an overload is reported.</summary>
+    /// <summary>Maximum number of queued capture batches before an overload is reported.</summary>
     internal int QueueCapacity { get; }
 
     /// <summary>Reads and validates the AudioCapture configuration section at startup.</summary>

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 using MeetingRecorder.Abstractions;
@@ -48,7 +49,8 @@ public sealed partial class RecorderViewModelTests
         folders.Setup(f => f.OpenDestination(It.IsAny<RecordingFolder>()));
         folders.Setup(f => f.Open(new RecordingFile(files[1])));
         var timer = new TestTimer();
-        using var services = new ServiceCollection().AddMeetingRecorderPresentation()
+        var logFolder = new RecordingFolder(@"C:\SoundSeal logs");
+        using var services = new ServiceCollection().AddMeetingRecorderPresentation(logFolder)
             .AddSingleton(Mock.Of<ISoundCheck>()).AddSingleton(folders.Object)
             .AddSingleton(recorder.Object).AddSingleton(catalog.Object).AddSingleton<IUiTimer>(timer).BuildServiceProvider();
         var window = services.GetRequiredService<MainWindow>();
@@ -86,6 +88,8 @@ public sealed partial class RecorderViewModelTests
                 window.UpdateLayout();
             }
 
+            PressLogShortcut(Button("Open folder"));
+            folders.Verify(f => f.OpenDestination(logFolder), Times.Once);
             Click("Open folder");
             folders.Verify(f => f.OpenDestination(new RecordingFolder(model.Folder)), Times.Once);
             Assert.False(Button("Compact view").IsVisible);
@@ -97,6 +101,8 @@ public sealed partial class RecorderViewModelTests
             Assert.Equal(WindowState.Normal, window.WindowState);
             Assert.True(window.ActualWidth < 400 && window.ActualHeight < 130);
             Assert.False(window.RecorderSurface.IsVisible);
+            PressLogShortcut(Button("Full view"));
+            folders.Verify(f => f.OpenDestination(logFolder), Times.Exactly(2));
             Assert.Equal(["Full view", "Start", "Stop", "Finish"], controls.Where(b => b.IsVisible).Select(b => b.Content));
             Assert.False(Button("Start").IsEnabled);
             Assert.Contains(Descendants(window.CompactSurface).OfType<TextBlock>(), text => text.Text == "00:00:38");
@@ -165,5 +171,21 @@ public sealed partial class RecorderViewModelTests
             timer.Pulse();
             window.Close();
         }
+    }
+
+    private static void PressLogShortcut(UIElement source)
+    {
+        var keyboard = new ShortcutKeyboard(InputManager.Current);
+        var key = new KeyEventArgs(keyboard, PresentationSource.FromVisual(source), Environment.TickCount, Key.L)
+        {
+            RoutedEvent = Keyboard.PreviewKeyDownEvent
+        };
+        source.RaiseEvent(key);
+        Assert.True(key.Handled);
+    }
+
+    private sealed class ShortcutKeyboard(InputManager manager) : KeyboardDevice(manager)
+    {
+        protected override KeyStates GetKeyStatesFromSystem(Key key) => key == Key.LeftCtrl ? KeyStates.Down : KeyStates.None;
     }
 }

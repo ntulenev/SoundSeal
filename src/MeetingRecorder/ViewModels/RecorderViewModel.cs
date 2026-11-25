@@ -5,22 +5,26 @@ using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
 using MeetingRecorder.Platform;
 
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace MeetingRecorder.ViewModels;
 
 /// <summary>Binds the window to the coordinator. Mutations run on the UI dispatcher.</summary>
-internal sealed class RecorderViewModel : ObservableObject, IDisposable
+internal sealed partial class RecorderViewModel : ObservableObject, IDisposable
 {
     private readonly IRecorder _recorder;
     private readonly IDeviceCatalog _devices;
     private readonly IUiTimer _timer;
     private readonly IFolderLauncher _folders;
     private readonly RecordingLinkClipboard _clipboard;
+    private readonly ILogger<RecorderViewModel> _logger;
     private string _notice = string.Empty;
     private RecorderDisplay _display;
 
     /// <summary>Connects the recorder, device catalog, dispatcher timer, shell and clipboard to the window.</summary>
     public RecorderViewModel(IRecorder recorder, IDeviceCatalog devices, IUiTimer timer,
-        IFolderLauncher folders, RecordingLinkClipboard clipboard)
+        IFolderLauncher folders, RecordingLinkClipboard clipboard, ILogger<RecorderViewModel>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(recorder);
         ArgumentNullException.ThrowIfNull(devices);
@@ -32,6 +36,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         _timer = timer;
         _folders = folders;
         _clipboard = clipboard;
+        _logger = logger ?? NullLogger<RecorderViewModel>.Instance;
         _display = ReadDisplay();
         _timer.Tick += OnTick;
     }
@@ -186,6 +191,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         }
         catch (RecordingException ex)
         {
+            LogDeviceFailure(_logger, ex);
             ApplyDevices(new([], []), null, null);
             _notice = ex.Message;
         }
@@ -244,6 +250,7 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         }
         catch (RecordingException ex)
         {
+            LogFileActionFailure(_logger, ex, "CopyLink", file.Value);
             FileActionStatus = ex.Message;
         }
     }
@@ -303,9 +310,31 @@ internal sealed class RecorderViewModel : ObservableObject, IDisposable
         }
         catch (RecordingException ex)
         {
+            LogFileActionFailure(_logger, ex, "OpenFolder", Display.File?.Value ?? Folder);
             FileActionStatus = ex.Message;
         }
     }
+
+    /// <summary>Opens the directory used by the file logger, creating it on first use.</summary>
+    internal void OpenLogFolder(RecordingFolder folder)
+    {
+        try
+        {
+            _folders.OpenDestination(folder);
+            FileActionStatus = string.Empty;
+        }
+        catch (RecordingException ex)
+        {
+            LogFileActionFailure(_logger, ex, "OpenLogFolder", folder.Value);
+            FileActionStatus = "Windows could not open the log folder.";
+        }
+    }
+
+    [LoggerMessage(1, LogLevel.Error, "Audio device discovery failed.")]
+    private static partial void LogDeviceFailure(ILogger logger, Exception exception);
+
+    [LoggerMessage(2, LogLevel.Error, "File action {Operation} failed for {Path}.")]
+    private static partial void LogFileActionFailure(ILogger logger, Exception exception, string operation, string path);
 
     private string MissingDeviceNotice() => (UsesMicrophone && Microphone is null, UsesOutput && Output is null) switch
     {

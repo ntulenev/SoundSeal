@@ -2,6 +2,8 @@ using System.Buffers.Binary;
 
 using MeetingRecorder.Domain;
 
+using Microsoft.Extensions.Logging;
+
 namespace MeetingRecorder.Storage;
 
 /// <summary>Streams mono PCM to a RIFF WAVE file.</summary>
@@ -10,8 +12,8 @@ internal sealed class WaveDestination : FileDestination
     private const long MAX_FRAMES = (uint.MaxValue - 36L) / 2;
     private readonly Stream _stream;
 
-    internal WaveDestination(Stream stream, RecordingFile temporary, RecordingFile final)
-        : base(temporary, final)
+    internal WaveDestination(Stream stream, RecordingFile temporary, RecordingFile final, ILogger? logger = null)
+        : base(temporary, final, logger)
     {
         ArgumentNullException.ThrowIfNull(stream);
         _stream = stream;
