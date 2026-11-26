@@ -287,7 +287,9 @@ public sealed partial class RecorderViewModelTests
         var timer = new TestTimer();
         string? copied = null;
         var soundCheck = new Mock<ISoundCheck>(MockBehavior.Strict);
-        using var services = new ServiceCollection().AddMeetingRecorderPresentation()
+        var folders = new TestLauncher();
+        using var services = new ServiceCollection().AddMeetingRecorderPresentation(@"C:\Logs")
+            .AddSingleton<IFolderLauncher>(folders)
             .AddSingleton(soundCheck.Object)
             .AddSingleton(new RecordingLinkClipboard(text => copied = text))
             .AddSingleton(recorder.Object).AddSingleton(catalog.Object)
@@ -426,6 +428,7 @@ public sealed partial class RecorderViewModelTests
             selector.IsDropDownOpen = false;
             model.Output.Should().Be(alternate);
             await CheckSoundDialogAsync(window, FindButton("Check sound"), soundCheck, cancellationToken);
+            Assert.Equal(@"C:\Logs", folders.Path);
             FindButton("Browse…").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             FindButton("Select folder").IsVisible.Should().BeTrue();
             var path = (TextBox)window.FindName("BrowserPath");
@@ -499,6 +502,7 @@ public sealed partial class RecorderViewModelTests
         try
         {
             Assert.Contains("Speakers (USB Audio)", dialog.OutputName.Text, StringComparison.Ordinal);
+            PressLogShortcut(dialog.CaptureButton);
             dialog.CaptureButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Assert.Equal("Signal detected", dialog.MicrophoneSignal.Text);

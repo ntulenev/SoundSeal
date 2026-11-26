@@ -3,12 +3,16 @@ using System.IO;
 using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
 
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace MeetingRecorder.ViewModels;
 
 /// <summary>Owns the folder chooser state and ignores superseded directory reads.</summary>
-internal sealed class FolderBrowserViewModel : ObservableObject
+internal sealed partial class FolderBrowserViewModel : ObservableObject
 {
     private readonly IFolderCatalog _catalog;
+    private readonly ILogger<FolderBrowserViewModel> _logger;
     private string? _directory;
     private int _navigation;
     private string _pathText = string.Empty;
@@ -16,10 +20,11 @@ internal sealed class FolderBrowserViewModel : ObservableObject
     private IReadOnlyList<string> _entries = [];
 
     /// <summary>Uses the supplied catalog to browse folders and drives.</summary>
-    public FolderBrowserViewModel(IFolderCatalog catalog)
+    public FolderBrowserViewModel(IFolderCatalog catalog, ILogger<FolderBrowserViewModel>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         _catalog = catalog;
+        _logger = logger ?? NullLogger<FolderBrowserViewModel>.Instance;
     }
 
     /// <summary>Editable folder path currently shown in the chooser.</summary>
@@ -108,10 +113,14 @@ internal sealed class FolderBrowserViewModel : ObservableObject
         }
         catch (RecordingException ex)
         {
+            LogBrowseFailure(_logger, ex, path, lookup);
             if (request == _navigation)
             {
                 _ = SetProperty(ref _notice, ex.Message, nameof(Notice));
             }
         }
     }
+
+    [LoggerMessage(1, LogLevel.Error, "Folder lookup {Lookup} failed for {Path}.")]
+    private static partial void LogBrowseFailure(ILogger logger, Exception exception, string? path, FolderLookup lookup);
 }

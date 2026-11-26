@@ -12,8 +12,11 @@ using MeetingRecorder.TestSupport;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 using Moq;
+
+using NAudio.Wave;
 
 namespace MeetingRecorder.Infrastructure.Tests;
 
@@ -148,6 +151,106 @@ public sealed class CaptureSessionTests : IDisposable
             result.Published.Should().BeTrue();
         });
 
+    /// <summary>A delayed file write preserves both devices' packets and their order through stop.</summary>
+    [Trait("Category", "Integration")]
+    [Theory]
+    [InlineData(RecordingFileFormat.Mp3)]
+    [InlineData(RecordingFileFormat.Wav)]
+    public Task SlowWriteShouldPreserveBufferedMeetingAudio(RecordingFileFormat format) => TestDeadline.Run(async token =>
+    {
+        const int PACKETS = 2000;
+        const long PERIOD = 10 * TimeSpan.TicksPerMillisecond;
+        const long BURST_START = TimeSpan.TicksPerSecond;
+        const long END = BURST_START + (PACKETS * PERIOD);
+        var now = 0L;
+        var clock = new Mock<IRecordingClock>();
+        clock.SetupGet(c => c.Now).Returns(() => Interlocked.Read(ref now));
+        var writing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var delivered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        RecordingProblem? failure = null;
+        var microphonePackets = 0;
+        using var resume = new ManualResetEventSlim();
+        using var actual = FileDestination.Create(_folder.FullName, DateTime.Now, format: format);
+        using var expected = FileDestination.Create(_folder.FullName, DateTime.Now, format: format);
+        var reference = new IntervalMixer(0, expected, _ => { });
+        var mic = MixingTests.Tone(false, 0, BURST_START, 0.01, 440);
+        var output = MixingTests.Tone(true, 0, BURST_START, 0.01, 880);
+        var interval = new CaptureInterval("mic", "out", clock.Object,
+            (_, loopback) => Open(loopback ? output : mic), new StalledSink(actual, writing, resume, token),
+            _ => { }, problem =>
+            {
+                failure = problem;
+                delivered.TrySetException(new RecordingException(problem.Message));
+            }, AudioCaptureOptions.DEFAULT_QUEUE_CAPACITY, token);
+        try
+        {
+            await interval.Started.WaitAsync(token);
+            Interlocked.Exchange(ref now, BURST_START);
+            await delivered.Task.WaitAsync(token);
+        }
+        finally
+        {
+            var stop = interval.StopAsync(END, token);
+            resume.Set();
+            await stop;
+        }
+
+        for (var i = 0; i < PACKETS; i++)
+        {
+            reference.Add(At(mic, i));
+            reference.Add(At(output, i));
+        }
+        reference.Drain(END);
+        var result = actual.Complete(EmptyRecordingPolicy.Keep, null);
+        var baseline = expected.Complete(EmptyRecordingPolicy.Keep, null);
+        Assert.Null(failure);
+        Assert.True(result.IsSuccessful, result.Problem?.Message);
+        Assert.Equal(END / RecordingFormat.TicksPerFrame, result.Frames.Value);
+        Assert.Equal(await DecodeAsync(baseline), await DecodeAsync(result));
+
+        async Task<byte[]> DecodeAsync(RecordingResult recording)
+        {
+            using var reader = new MediaFoundationReader(recording.Path!.Value);
+            using var pcm = new MemoryStream();
+            await reader.CopyToAsync(pcm, token);
+            return pcm.ToArray();
+        }
+
+        IInputEndpoint Open(AudioPacket template)
+        {
+            var index = 0;
+            return new TestEndpoint { Deliver = Deliver };
+
+            void Deliver(Action<AudioPacket> accept)
+            {
+                if (!writing.Task.IsCompleted || index == PACKETS)
+                {
+                    return;
+                }
+
+                // Advance both tracks by 100 ms per poll while the file write is stalled.
+                if (!template.Loopback)
+                {
+                    microphonePackets = Math.Min(index + 10, PACKETS);
+                    Interlocked.Exchange(ref now, BURST_START + (microphonePackets * PERIOD));
+                }
+                for (; index < microphonePackets; index++)
+                {
+                    accept(At(template, index));
+                }
+                if (template.Loopback && index == PACKETS)
+                {
+                    delivered.SetResult();
+                }
+            }
+        }
+
+        static AudioPacket At(AudioPacket packet, int index)
+        {
+            return packet with { Position = (long)index * packet.Frames, Qpc = BURST_START + (index * PERIOD) };
+        }
+    });
+
     /// <summary>Queue pressure interrupts without blocking the capture thread.</summary>
     [Trait("Category", "Integration")]
     [Fact(DisplayName = "Queue pressure interrupts without blocking the capture thread")]
@@ -157,11 +260,12 @@ public sealed class CaptureSessionTests : IDisposable
             using var file = FileDestination.Create(_folder.FullName, DateTime.Now);
             using var stalled = new ManualResetEventSlim();
             var fault = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var logger = new TestLogger<CaptureInterval>();
             using var mic = new TestEndpoint();
             using var output = new TestEndpoint();
             var interval = new CaptureInterval("mic", "out", _clock,
                 (_, loopback) => loopback ? output : mic, file,
-                _ => stalled.Wait(TimeSpan.FromSeconds(3)), message => fault.TrySetResult(message.Message), 1, cancellationToken);
+                _ => stalled.Wait(TimeSpan.FromSeconds(3)), message => fault.TrySetResult(message.Message), 1, cancellationToken, logger);
             await interval.Started;
             try
             {
@@ -174,6 +278,13 @@ public sealed class CaptureSessionTests : IDisposable
             }
 
             file.Complete(EmptyRecordingPolicy.Keep, null).Published.Should().BeTrue();
+            var (level, error, fields) = Assert.Single(logger.Entries);
+            Assert.Equal(LogLevel.Error, level);
+            Assert.Contains("queue", Assert.IsType<RecordingException>(error).Message, StringComparison.Ordinal);
+            Assert.Equal(1, fields["QueuedBatches"]);
+            Assert.Equal(1, fields["QueueCapacity"]);
+            Assert.True(Assert.IsType<int>(fields["PendingMessages"]) > 0);
+            Assert.True(Assert.IsType<TimeSpan>(fields["MixerDelay"]) > TimeSpan.Zero);
         });
 
     /// <summary>Concurrent filenames reserve separate paths and never overwrite.</summary>
@@ -374,8 +485,9 @@ public sealed class CaptureSessionTests : IDisposable
     {
         var partial = Path.Combine(_folder.FullName, "sound.partial");
         var final = Path.Combine(_folder.FullName, "sound.wav");
+        var logger = new TestLogger<WaveRecordingStore>();
         using var stream = new FailingFile(partial) { Position = 44 };
-        using var writer = new WaveDestination(stream, partial, final);
+        using var writer = new WaveDestination(stream, partial, final, logger);
         writer.Append(new Pcm16Block([1, 2, 3, 4]));
         stream.FailNext = true;
         var result = writer.Complete(EmptyRecordingPolicy.Keep, "Device disconnected.");
@@ -385,6 +497,12 @@ public sealed class CaptureSessionTests : IDisposable
         result.Problem!.Message.Should().Contain("disconnected").And.Contain("finalized");
         File.Exists(final).Should().BeFalse();
         File.ReadAllBytes(partial).Skip(44).Should().Equal(1, 2, 3, 4);
+        var (level, error, fields) = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Error, level);
+        Assert.Equal("Simulated disk failure", Assert.IsType<IOException>(error).Message);
+        Assert.Equal(partial, fields["TemporaryPath"]);
+        Assert.Equal(final, fields["FinalPath"]);
+        Assert.Equal(2L, fields["Frames"]);
     }
 
     /// <summary>The real capture factory reserves a file and discards an empty session.</summary>
@@ -644,6 +762,7 @@ public sealed class CaptureSessionTests : IDisposable
     {
         internal volatile bool FailRead;
         internal AudioPacket? NextPacket;
+        internal Action<Action<AudioPacket>>? Deliver { get; init; }
 
         public TimeSpan EnginePeriod => TimeSpan.FromMilliseconds(10);
 
@@ -661,6 +780,7 @@ public sealed class CaptureSessionTests : IDisposable
 
         public void Drain(Action<AudioPacket> accept)
         {
+            Deliver?.Invoke(accept);
             if (Interlocked.Exchange(ref NextPacket, null) is { } packet)
             {
                 accept(packet);
@@ -673,6 +793,35 @@ public sealed class CaptureSessionTests : IDisposable
         }
 
         public void Dispose() => Disposed = true;
+    }
+
+    private sealed class StalledSink(IPcmSink file, TaskCompletionSource writing, ManualResetEventSlim resume,
+        CancellationToken token) : IPcmSink
+    {
+        public void Append(Pcm16Block block)
+        {
+            if (writing.TrySetResult())
+            {
+                resume.Wait(token);
+            }
+            file.Append(block);
+        }
+    }
+
+    private sealed class TestLogger<T> : ILogger<T>
+    {
+        internal List<(LogLevel Level, Exception? Error, Dictionary<string, object?> Fields)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            var fields = Assert.IsType<IEnumerable<KeyValuePair<string, object?>>>(state, exactMatch: false);
+            Entries.Add((logLevel, exception, fields.ToDictionary()));
+        }
     }
 
     private sealed class FailingFile : FileStream

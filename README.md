@@ -105,6 +105,10 @@ If your tool uses a file picker, click **Open folder** in SoundSeal to locate th
 
 ## Troubleshooting
 
+Press **Ctrl+L** in SoundSeal to open the error log folder in File Explorer. The shortcut works in the full window, compact view and sound check dialog.
+
+SoundSeal writes local error diagnostics to `%LOCALAPPDATA%\MeetingRecorder\Logs\errors-YYYYMMDD.jsonl`. Open the file for the day of the failure and find the matching time. Each line is one JSON event. Use `RecordingId` to follow the same recording from the capture error to its saved or recoverable file. Capture errors include device IDs, recording settings, elapsed interval time, queue usage and exception details. The journal contains only errors and critical failures. Files roll daily or at 5 MiB, with up to 14 files retained.
+
 When reporting a recording issue, include the version shown below **SoundSeal** in the window header and the names of the selected devices.
 
 | What you see or hear | What to check |
@@ -187,7 +191,7 @@ Edit the `AudioCapture` section in `appsettings.json` beside `SoundSeal.exe` and
 | `MinimumSampleRate` / `MaximumSampleRate` | 8000 / 384000 | Inclusive native rates in Hz. Both must be positive and ordered. |
 | `MaximumChannels` | 32 | Maximum native channel count, from 1 to the 32 positions in a Windows speaker mask. |
 | `AllowedEncodings` | `Pcm8,Pcm16,Pcm24,Pcm32,Float32,Float64` | Comma-separated subset of implemented little-endian decoders. |
-| `QueueCapacity` | 512 | Positive limit on pending capture messages. A full queue interrupts capture and publishes the available audio. |
+| `QueueCapacity` | 512 | Maximum number of queued capture batches. While the mixer or file writer is busy, each batch holds up to 32 messages or 128 KiB of audio, whichever comes first. A larger native packet occupies its own batch. If the backlog exceeds the limit, capture stops and SoundSeal saves the available audio. |
 
 ### Lifetimes and cancellation
 

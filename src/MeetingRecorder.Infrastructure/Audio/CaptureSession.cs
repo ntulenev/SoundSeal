@@ -1,6 +1,8 @@
 using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
 
+using Microsoft.Extensions.Logging;
+
 namespace MeetingRecorder.Infrastructure.Audio;
 
 /// <summary>Owns the recording destination across pauses and resets the independent peak holds.</summary>
@@ -14,6 +16,7 @@ internal sealed class CaptureSession : ICaptureSession
     private readonly IRecordingDestination _file;
     private readonly Func<EndpointId, bool, IInputEndpoint> _open;
     private readonly int _capacity;
+    private readonly ILogger<CaptureInterval>? _logger;
     private readonly Lock _levelsLock = new();
     private float _micPeak, _outputPeak;
     private long _micUntil, _outputUntil;
@@ -25,7 +28,7 @@ internal sealed class CaptureSession : ICaptureSession
     /// <summary>Pins the device selection and destination across pause and resume.</summary>
     internal CaptureSession(RecordingSettings settings, IRecordingClock clock,
         IRecordingDestination file, Func<EndpointId, bool, IInputEndpoint> open,
-        int capacity = AudioCaptureOptions.DEFAULT_QUEUE_CAPACITY)
+        int capacity = AudioCaptureOptions.DEFAULT_QUEUE_CAPACITY, ILogger<CaptureInterval>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(clock);
@@ -33,6 +36,7 @@ internal sealed class CaptureSession : ICaptureSession
         ArgumentNullException.ThrowIfNull(open);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         _capacity = capacity;
+        _logger = logger;
         _settings = settings;
         _clock = clock;
         _file = file;
@@ -68,7 +72,8 @@ internal sealed class CaptureSession : ICaptureSession
             throw new InvalidOperationException("A capture interval is already active.");
         }
 
-        _interval = new CaptureInterval(_settings.MicrophoneId, _settings.OutputId, _clock, _open, _file, Update, Fail, _capacity, _lifetime.Token);
+        _interval = new CaptureInterval(_settings.MicrophoneId, _settings.OutputId, _clock, _open, _file, Update, Fail,
+            _capacity, _lifetime.Token, _logger);
         return _interval.Started.WaitAsync(cancellationToken);
     }
 

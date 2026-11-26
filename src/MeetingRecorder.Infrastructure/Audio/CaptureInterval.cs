@@ -1,33 +1,49 @@
+using System.Diagnostics;
 using System.Threading.Channels;
 
 using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
 
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace MeetingRecorder.Infrastructure.Audio;
 
 /// <summary>Owns the capture thread, bounded handoff and mixing worker for a single
 /// interval. Starting another interval always allocates new queues and filter state.</summary>
-internal sealed class CaptureInterval
+internal sealed partial class CaptureInterval
 {
     private const long OPEN_BOUNDARY = -1;
     private const int POLL_MILLISECONDS = 5;
     private const long WATERMARK_PERIOD = 25 * TimeSpan.TicksPerMillisecond;
     private const long REORDER_DELAY = 150 * TimeSpan.TicksPerMillisecond;
     private const long FUTURE_TOLERANCE = 100 * TimeSpan.TicksPerMillisecond;
+    private const int MAX_BATCH_MESSAGES = 32;
+    private const int MAX_BATCH_BYTES = 128 * 1024;
 
-    private readonly Channel<Message> _queue;
+    private readonly Channel<List<Message>> _queue;
+    private readonly ILogger<CaptureInterval> _logger;
+    private readonly int _capacity;
+    private readonly long _created = Stopwatch.GetTimestamp();
     private readonly TaskCompletionSource<CaptureTimestamp> _ready =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly IRecordingClock _clock;
     private readonly Action<RecordingProblem> _interrupt;
-    private readonly TaskCompletionSource _producer = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<List<Message>> _lastBatch = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Task _consumer;
+    private List<Message> _pending = [];
+    private int _pendingBytes;
+    private long _microphonePackets;
+    private long _outputPackets;
+    private long _lastMixedBatch;
+    private int? _queuedAtFailure;
     private long _boundary = OPEN_BOUNDARY;
 
     /// <summary>Starts the native capture thread and asynchronous mixer for a single interval.</summary>
     internal CaptureInterval(EndpointId? microphone, EndpointId? outputId, IRecordingClock clock,
         Func<EndpointId, bool, IInputEndpoint> open, IPcmSink file,
-        Action<Levels> meter, Action<RecordingProblem> interrupt, int capacity, CancellationToken cancellationToken)
+        Action<Levels> meter, Action<RecordingProblem> interrupt, int capacity, CancellationToken cancellationToken,
+        ILogger<CaptureInterval>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(open);
@@ -35,8 +51,11 @@ internal sealed class CaptureInterval
         ArgumentNullException.ThrowIfNull(meter);
         ArgumentNullException.ThrowIfNull(interrupt);
         _clock = clock;
+        _capacity = capacity;
+        _logger = logger ?? NullLogger<CaptureInterval>.Instance;
+        _lastMixedBatch = _created;
         _interrupt = interrupt;
-        _queue = Channel.CreateBounded<Message>(new BoundedChannelOptions(capacity)
+        _queue = Channel.CreateBounded<List<Message>>(new BoundedChannelOptions(capacity)
         {
             SingleReader = true,
             SingleWriter = true,
@@ -59,7 +78,7 @@ internal sealed class CaptureInterval
     {
         cancellationToken.ThrowIfCancellationRequested();
         _ = Interlocked.CompareExchange(ref _boundary, boundary.Ticks, OPEN_BOUNDARY);
-        await Task.WhenAll(_producer.Task, _consumer).ConfigureAwait(false);
+        await Task.WhenAll(_lastBatch.Task, _consumer).ConfigureAwait(false);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031",
@@ -88,6 +107,13 @@ internal sealed class CaptureInterval
                     watermark = now;
                 }
 
+                // Hand off immediately when caught up. While the mixer is busy writing,
+                // pack small device packets and watermarks together in capture order.
+                if (_pending.Count > 0 && _queue.Reader.Count == 0)
+                {
+                    PublishBatch();
+                }
+
                 _ = cancellationToken.WaitHandle.WaitOne(POLL_MILLISECONDS);
                 cancellationToken.ThrowIfCancellationRequested();
             }
@@ -104,18 +130,35 @@ internal sealed class CaptureInterval
                 "The audio devices stopped responding. Check the connections and refresh devices.", ex);
             if (!_ready.TrySetException(failure))
             {
+                var queued = _queuedAtFailure ?? _queue.Reader.Count;
+                var elapsed = Stopwatch.GetElapsedTime(_created);
+                var mixerDelay = Stopwatch.GetElapsedTime(Volatile.Read(ref _lastMixedBatch));
                 Fail(failure.Message);
+                if (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+                {
+                    LogCaptureFailure(_logger, failure, elapsed, mixerDelay, queued, _capacity, _pending.Count,
+                        _pendingBytes, _microphonePackets, _outputPackets);
+                }
             }
         }
         finally
         {
             _ = _queue.Writer.TryComplete();
-            _producer.SetResult();
+            // Transfer the producer's tail even if the channel was full at stop or device loss.
+            _lastBatch.SetResult(_pending);
         }
     }
 
     private void Enqueue(AudioPacket packet)
     {
+        if (packet.Loopback)
+        {
+            _outputPackets++;
+        }
+        else
+        {
+            _microphonePackets++;
+        }
         if (packet.Qpc < 0 || packet.Qpc - _clock.Now.Ticks > FUTURE_TOLERANCE)
         {
             throw new RecordingException("The device returned an invalid audio timestamp.");
@@ -126,10 +169,26 @@ internal sealed class CaptureInterval
 
     private void Send(Message message)
     {
-        if (!_queue.Writer.TryWrite(message))
+        var bytes = message.Packet?.Data.Length ?? 0;
+        if (_pending.Count == MAX_BATCH_MESSAGES || (_pending.Count > 0 && bytes > MAX_BATCH_BYTES - _pendingBytes))
         {
+            PublishBatch();
+        }
+
+        _pending.Add(message);
+        _pendingBytes += bytes;
+    }
+
+    private void PublishBatch()
+    {
+        if (!_queue.Writer.TryWrite(_pending))
+        {
+            // Endpoint disposal can take time while the mixer is already catching up.
+            _queuedAtFailure = _capacity;
             throw new RecordingException("The capture queue filled up. The recording is incomplete.");
         }
+        _pending = [];
+        _pendingBytes = 0;
     }
 
     private void Fail(RecordingProblem message)
@@ -145,38 +204,66 @@ internal sealed class CaptureInterval
         {
             var start = await Started.WaitAsync(cancellationToken).ConfigureAwait(false);
             mixer = new IntervalMixer(start, file, meter);
-            await foreach (var message in _queue.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            await foreach (var batch in _queue.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
-                if (message.Packet is { } packet)
-                {
-                    mixer.Add(packet);
-                }
-                else
-                {
-                    var cutoff = Volatile.Read(ref _boundary);
-                    mixer.Drain(cutoff == OPEN_BOUNDARY ? message.Watermark : Math.Min(message.Watermark, cutoff));
-                }
+                MixBatch(mixer, batch);
+                Volatile.Write(ref _lastMixedBatch, Stopwatch.GetTimestamp());
             }
 
+            MixBatch(mixer, await _lastBatch.Task.ConfigureAwait(false));
             mixer.Drain(Volatile.Read(ref _boundary));
         }
         catch (RecordingException ex) when (mixer is not null)
         {
+            var queued = _queue.Reader.Count;
+            var elapsed = Stopwatch.GetElapsedTime(_created);
             Fail(ex.Message);
+            LogMixFailure(_logger, ex, "Mix", elapsed, queued, _capacity, mixer.WrittenFrames);
             try
             {
                 mixer.Drain(Volatile.Read(ref _boundary));
             }
-            catch (RecordingException)
+            catch (RecordingException drainError)
             {
-                // File failure: the writer will finalize its last successful block.
+                LogMixFailure(_logger, drainError, "RecoveryDrain", Stopwatch.GetElapsedTime(_created),
+                    _queue.Reader.Count, _capacity, mixer.WrittenFrames);
             }
         }
         catch (RecordingException)
         {
             // Startup failure is delivered to BeginIntervalAsync through Started.
         }
+        catch (Exception ex) when (mixer is not null && ex is not OperationCanceledException)
+        {
+            LogMixFailure(_logger, ex, "Mix", Stopwatch.GetElapsedTime(_created), _queue.Reader.Count,
+                _capacity, mixer.WrittenFrames);
+            throw;
+        }
+    }
+
+    private void MixBatch(IntervalMixer mixer, List<Message> batch)
+    {
+        foreach (var message in batch)
+        {
+            if (message.Packet is { } packet)
+            {
+                mixer.Add(packet);
+            }
+            else
+            {
+                var cutoff = Volatile.Read(ref _boundary);
+                mixer.Drain(cutoff == OPEN_BOUNDARY ? message.Watermark : Math.Min(message.Watermark, cutoff));
+            }
+        }
     }
 
     private readonly record struct Message(AudioPacket? Packet, long Watermark);
+
+    [LoggerMessage(1, LogLevel.Error, "Audio capture failed after {IntervalElapsed}. Time since the last mixed batch={MixerDelay}, queued batches={QueuedBatches}/{QueueCapacity}, pending messages={PendingMessages}, pending bytes={PendingBytes}, microphone packets={MicrophonePackets}, output packets={OutputPackets}.")]
+    private static partial void LogCaptureFailure(ILogger logger, Exception exception, TimeSpan intervalElapsed,
+        TimeSpan mixerDelay, int queuedBatches, int queueCapacity, int pendingMessages, int pendingBytes, long microphonePackets, long outputPackets);
+
+    [LoggerMessage(2, LogLevel.Error, "Audio mixing or writing failed during {Stage} after {IntervalElapsed}. Queued batches={QueuedBatches}/{QueueCapacity}, written frames={WrittenFrames}.")]
+    private static partial void LogMixFailure(ILogger logger, Exception exception, string stage, TimeSpan intervalElapsed,
+        int queuedBatches, int queueCapacity, long writtenFrames);
 }

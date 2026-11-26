@@ -5,22 +5,27 @@ using System.Windows.Controls;
 using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
 
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace MeetingRecorder.Views;
 
 /// <summary>Owns a short audio check and releases the devices before returning to the recorder.</summary>
 internal partial class SoundCheckDialog : Window
 {
     private readonly ISoundCheck _check;
+    private readonly ILogger<SoundCheckDialog> _logger;
     private readonly EndpointId? _microphone;
     private readonly EndpointId? _output;
     private CancellationTokenSource? _operation;
     private byte[]? _sample;
     private bool _closing;
 
-    internal SoundCheckDialog(ISoundCheck check, Endpoint? microphone, Endpoint? output)
+    internal SoundCheckDialog(ISoundCheck check, Endpoint? microphone, Endpoint? output, ILogger<SoundCheckDialog>? logger = null)
     {
         InitializeComponent();
         _check = check;
+        _logger = logger ?? NullLogger<SoundCheckDialog>.Instance;
         _microphone = microphone?.Id;
         _output = output?.Id;
         MicrophonePanel.Visibility = microphone is null ? Visibility.Collapsed : Visibility.Visible;
@@ -54,6 +59,12 @@ internal partial class SoundCheckDialog : Window
         }
 
         using var operation = new CancellationTokenSource();
+        using var scope = _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["Operation"] = listen ? "SoundCheckPlayback" : "SoundCheckCapture",
+            ["MicrophoneId"] = _microphone?.Value,
+            ["OutputId"] = _output?.Value
+        });
         _operation = operation;
         CaptureButton.IsEnabled = ListenButton.IsEnabled = false;
         try
@@ -86,6 +97,7 @@ internal partial class SoundCheckDialog : Window
         }
         catch (RecordingException ex)
         {
+            LogCheckFailure(_logger, ex);
             Status.Text = ex.Message;
         }
         finally
@@ -103,6 +115,9 @@ internal partial class SoundCheckDialog : Window
             }
         }
     }
+
+    [LoggerMessage(1, LogLevel.Error, "Sound check failed.")]
+    private static partial void LogCheckFailure(ILogger logger, Exception exception);
 
     private void UpdatePeaks(Levels levels)
     {

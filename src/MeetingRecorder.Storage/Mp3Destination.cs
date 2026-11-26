@@ -3,6 +3,8 @@ using System.Runtime.Versioning;
 
 using MeetingRecorder.Domain;
 
+using Microsoft.Extensions.Logging;
+
 using NAudio.MediaFoundation;
 using NAudio.Wave;
 
@@ -22,8 +24,8 @@ internal sealed class Mp3Destination : FileDestination
     private long _timestampTicks;
     private bool _encodingFailed;
 
-    internal Mp3Destination(RecordingFile temporary, RecordingFile final)
-        : base(temporary, final)
+    internal Mp3Destination(RecordingFile temporary, RecordingFile final, ILogger? logger = null)
+        : base(temporary, final, logger)
     {
         _path = temporary.Value;
         try

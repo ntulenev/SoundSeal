@@ -32,6 +32,8 @@ internal sealed class IntervalMixer
         _output = new(start.Ticks);
     }
 
+    internal long WrittenFrames => _written;
+
     /// <summary>Routes a device packet to its corresponding source timeline.</summary>
     internal void Add(AudioPacket packet)
     {

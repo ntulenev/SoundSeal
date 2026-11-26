@@ -1,14 +1,17 @@
 using System.Globalization;
+using System.IO;
 using System.Windows;
 
 using MeetingRecorder.Abstractions;
 using MeetingRecorder.Application.DependencyInjection;
 using MeetingRecorder.DependencyInjection;
+using MeetingRecorder.Domain;
 using MeetingRecorder.Infrastructure.DependencyInjection;
 using MeetingRecorder.Views;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace MeetingRecorder;
 
@@ -19,6 +22,7 @@ public partial class App : System.Windows.Application
 {
     private readonly CancellationTokenSource _lifetime = new();
     private IHost? _host;
+    private ILogger<App>? _logger;
 
     /// <inheritdoc/>
     protected override void OnStartup(StartupEventArgs e)
@@ -34,9 +38,16 @@ public partial class App : System.Windows.Application
         using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         if (_host is not null)
         {
-            _host.Services.GetRequiredService<IRecorder>().FinishAsync(shutdown.Token).GetAwaiter().GetResult();
-            _host.StopAsync(shutdown.Token).GetAwaiter().GetResult();
-            _host.Dispose();
+            try
+            {
+                _host.Services.GetRequiredService<IRecorder>().FinishAsync(shutdown.Token).GetAwaiter().GetResult();
+                _host.StopAsync(shutdown.Token).GetAwaiter().GetResult();
+            }
+            finally
+            {
+                AppDomain.CurrentDomain.UnhandledException -= OnUnhandledException;
+                _host.Dispose();
+            }
         }
 
         _lifetime.Dispose();
@@ -51,10 +62,15 @@ public partial class App : System.Windows.Application
         {
             ContentRootPath = AppContext.BaseDirectory
         });
+        var logFolder = new RecordingFolder(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MeetingRecorder", "Logs"));
+        builder.AddRecorderErrorLog(logFolder.Value);
         _ = builder.Services.AddMeetingRecorderApplication()
             .AddMeetingRecorderInfrastructure(builder.Configuration)
-            .AddMeetingRecorderPresentation();
+            .AddMeetingRecorderPresentation(logFolder);
         _host = builder.Build();
+        _logger = _host.Services.GetRequiredService<ILogger<App>>();
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         try
         {
             await _host.StartAsync(cancellationToken);
@@ -67,4 +83,15 @@ public partial class App : System.Windows.Application
         MainWindow = _host.Services.GetRequiredService<MainWindow>();
         MainWindow.Show();
     }
+
+    private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (_logger is { } logger && e.ExceptionObject is Exception exception)
+        {
+            LogUnhandledFailure(logger, exception, e.IsTerminating);
+        }
+    }
+
+    [LoggerMessage(1, LogLevel.Critical, "Unhandled application exception. Terminating={Terminating}.")]
+    private static partial void LogUnhandledFailure(ILogger logger, Exception exception, bool terminating);
 }

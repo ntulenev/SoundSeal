@@ -7,6 +7,8 @@ using MeetingRecorder.Abstractions;
 using MeetingRecorder.Domain;
 using MeetingRecorder.ViewModels;
 
+using Microsoft.Extensions.Logging;
+
 namespace MeetingRecorder.Views;
 
 /// <summary>Hosts the recorder and its English folder and close interactions.</summary>
@@ -16,23 +18,29 @@ public partial class MainWindow : Window
 {
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ISoundCheck _soundCheck;
+    private readonly ILogger<SoundCheckDialog>? _soundCheckLogger;
     private readonly RecorderViewModel _model;
     private readonly FolderBrowserViewModel _browser;
+    private readonly RecordingFolder _logFolder;
     private bool _finishingExit;
     private Point _dragOrigin;
     private Rect? _fullBounds;
     private WindowState _fullWindowState;
 
     /// <summary>Binds the recorder and folder chooser to their views.</summary>
-    internal MainWindow(RecorderViewModel model, FolderBrowserViewModel browser, ISoundCheck soundCheck)
+    internal MainWindow(RecorderViewModel model, FolderBrowserViewModel browser, ISoundCheck soundCheck,
+        RecordingFolder logFolder, ILogger<SoundCheckDialog>? soundCheckLogger = null)
     {
         ArgumentNullException.ThrowIfNull(model);
         ArgumentNullException.ThrowIfNull(browser);
         ArgumentNullException.ThrowIfNull(soundCheck);
         _soundCheck = soundCheck;
+        _soundCheckLogger = soundCheckLogger;
         _model = model;
         _browser = browser;
+        _logFolder = logFolder;
         InitializeComponent();
+        PreviewKeyDown += OnLogFolderShortcut;
         var version = typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
         VersionLabel.Text = $"Version {version.Split('+')[0]}";
         DataContext = model;
@@ -59,10 +67,11 @@ public partial class MainWindow : Window
         if (_model.CanCheckSound)
         {
             var dialog = new SoundCheckDialog(_soundCheck, _model.UsesMicrophone ? _model.Microphone : null,
-                _model.UsesOutput ? _model.Output : null)
+                _model.UsesOutput ? _model.Output : null, _soundCheckLogger)
             {
                 Owner = this
             };
+            dialog.PreviewKeyDown += OnLogFolderShortcut;
             _ = dialog.ShowDialog();
         }
     }
@@ -259,6 +268,18 @@ public partial class MainWindow : Window
         {
             HidePanel();
             e.Handled = true;
+        }
+    }
+
+    private void OnLogFolderShortcut(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.L && e.KeyboardDevice.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            if (!e.IsRepeat)
+            {
+                _model.OpenLogFolder(_logFolder);
+            }
         }
     }
 
